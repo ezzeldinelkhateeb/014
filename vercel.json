@@ -13,11 +13,6 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
-    { "src": "/api/proxy/base/(.*)", "dest": "/api/proxy/base/$1" },
-    { "src": "/api/proxy/video/(.*)", "dest": "/api/proxy/video/$1" },
-    { "src": "/(.*)", "dest": "/dist/$1" }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -27,5 +22,8 @@
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, AccessKey" }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
