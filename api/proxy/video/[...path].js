@@ -20,10 +20,10 @@ export default async function handler(req, res) {
     const pathArray = Array.isArray(path) ? path : [path];
     const apiPath = pathArray.join('/');
     
-    // Get API key from environment
-    const apiKey = process.env.VITE_BUNNY_API_KEY;
+    // Get API key from request headers first, then environment as fallback
+    const apiKey = req.headers.accesskey || req.headers.AccessKey || process.env.VITE_BUNNY_API_KEY;
     if (!apiKey) {
-      console.error('Missing VITE_BUNNY_API_KEY in environment');
+      console.error('Missing API key in headers or environment');
       return res.status(500).json({ error: 'API key not configured' });
     }
 
