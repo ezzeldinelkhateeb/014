@@ -8,10 +8,10 @@
   },
   "functions": {
     "api/**/*.js": {
-      "runtime": "@vercel/node@3.3.0"
+      "runtime": "@vercel/node@2.15.10"
     },
     "api/**/*.ts": {
-      "runtime": "@vercel/node@3.3.0"
+      "runtime": "@vercel/node@2.15.10"
     }
   },
   "headers": [
