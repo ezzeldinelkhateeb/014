@@ -221,13 +221,36 @@ export class HttpClient {
           signal: options.signal || AbortSignal.timeout(180000) // 3 minute timeout
         });
 
+        console.log(`[HttpClient] Proxy response status: ${response.status}`);
+        console.log(`[HttpClient] Proxy response headers:`, Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`[HttpClient] Proxy request failed: ${response.status} ${errorText}`);
+          console.error(`[HttpClient] Proxy request failed:`, {
+            url: finalUrl,
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries()),
+            response: errorText
+          });
           throw new Error(`Request failed: ${response.status} ${errorText}`);
         }
 
-        return response.json();
+        const responseText = await response.text();
+        console.log(`[HttpClient] Proxy raw response:`, responseText.substring(0, 200) + '...');
+        
+        try {
+          const jsonData = JSON.parse(responseText);
+          console.log(`[HttpClient] Proxy parsed response successfully`);
+          return jsonData;
+        } catch (parseError) {
+          console.error(`[HttpClient] Failed to parse proxy response:`, {
+            parseError: parseError.message,
+            responseText: responseText.substring(0, 500),
+            isHTML: responseText.startsWith('<!DOCTYPE') || responseText.startsWith('<!doctype')
+          });
+          throw new Error(`Failed to parse JSON response: ${parseError.message}. Response was: ${responseText.substring(0, 200)}`);
+        }
       }
 
       // For non-proxy requests, use the direct API URL
@@ -274,6 +297,12 @@ export class HttpClient {
   }
 
   private shouldUseProxy(path: string): boolean {
-    return this.shouldUseVideoApi(path);
+    // Always use proxy in production, or when running on Vercel
+    const isProduction = import.meta.env.PROD;
+    const isVercel = window.location.hostname.includes('vercel.app') || 
+                    window.location.hostname.includes('app.vercel.com') ||
+                    import.meta.env.VITE_VERCEL_ENV;
+    
+    return isProduction || isVercel || this.shouldUseVideoApi(path);
   }
 }
