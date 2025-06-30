@@ -2,6 +2,11 @@
 npm install
 npm run dev
 
+git add .
+git commit -m "Merge remote changes"
+git push origin main
+vercel --prod --force
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
