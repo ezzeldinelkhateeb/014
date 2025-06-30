@@ -1,12 +1,24 @@
 # React + TypeScript + Vite
+
+## Quick Start
+```bash
 npm install
 npm run dev
+```
 
+## Deployment
+```bash
 git add .
 git commit -m "Merge remote changes"
 git push origin main
 vercel --prod --force
+```
 
+## Deployment URLs
+- **Production**: https://014-8mesmyuv3-ezzeldinelkhateebs-projects.vercel.app
+- **Inspect**: https://vercel.com/ezzeldinelkhateebs-projects/014/BmnmosHBjNCTEGAEPYZpeGad4P3C
+
+## Project Structure
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

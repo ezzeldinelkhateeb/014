@@ -13,6 +13,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
 
     "strict": false,
     "paths": {
@@ -21,10 +23,20 @@
     "types": [
       "@types/gapi",
       "@types/gapi.client",
-      "@types/gapi.client.sheets"
+      "@types/gapi.client.sheets",
+      "next"
     ]
   },
-  "include": ["src"],
-  "exclude": ["src/tempobook"],
+  "include": [
+    "src",
+    "pages",
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "src/tempobook",
+    "node_modules"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

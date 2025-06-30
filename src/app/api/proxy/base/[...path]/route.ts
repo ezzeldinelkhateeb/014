@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BASE_URL } from '@/lib/bunny/constants';
 
-export async function GET(request: NextRequest) {
-  return handleProxyRequest(request);
+interface RouteParams {
+  params: {
+    path: string[];
+  };
 }
 
-export async function POST(request: NextRequest) {
-  return handleProxyRequest(request);
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  return handleProxyRequest(request, params);
 }
 
-export async function PUT(request: NextRequest) {
-  return handleProxyRequest(request);
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  return handleProxyRequest(request, params);
 }
 
-export async function DELETE(request: NextRequest) {
-  return handleProxyRequest(request);
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  return handleProxyRequest(request, params);
+}
+
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  return handleProxyRequest(request, params);
 }
 
 export async function OPTIONS(request: NextRequest) {
@@ -28,27 +34,16 @@ export async function OPTIONS(request: NextRequest) {
   });
 }
 
-async function handleProxyRequest(request: NextRequest) {
+async function handleProxyRequest(request: NextRequest, params: { path: string[] }) {
   try {
     const url = new URL(request.url);
-    
-    // Extract path after /api/proxy/base
-    const fullPath = url.pathname;
-    const basePath = '/api/proxy/base';
-    let targetPath = fullPath.replace(basePath, '');
-    
-    // If no path after base, check for path in search params
-    if (!targetPath || targetPath === '/') {
-      const pathParam = url.searchParams.get('path');
-      if (pathParam) {
-        targetPath = pathParam.startsWith('/') ? pathParam : `/${pathParam}`;
-      }
-    }
-    
     const apiKey = request.headers.get('AccessKey') || request.headers.get('accesskey');
     const method = request.method;
 
-    if (!targetPath || targetPath === '/') {
+    // Build the target path from the route params
+    const targetPath = params.path ? `/${params.path.join('/')}` : '';
+
+    if (!targetPath) {
       return NextResponse.json({ error: 'Path parameter is required' }, { status: 400 });
     }
 
@@ -56,43 +51,31 @@ async function handleProxyRequest(request: NextRequest) {
       return NextResponse.json({ error: 'API key is required' }, { status: 401 });
     }
 
-    // Clean target path
-    if (!targetPath.startsWith('/')) {
-      targetPath = `/${targetPath}`;
-    }
-
     const targetUrl = `${BASE_URL}${targetPath}${url.search}`;
-    console.log(`[Base Proxy] Forwarding ${method} request to ${targetUrl}`);
+    console.log(`[Base Proxy Dynamic] Forwarding ${method} request to ${targetUrl}`);
 
-    // Clone the headers and create a new headers object
+    // Set up headers
     const headers = new Headers();
     headers.set('AccessKey', apiKey);
     headers.set('Accept', 'application/json');
     
-    // Log the headers we're sending
-    console.log(`[Base Proxy DEBUG] Request headers:`, Object.fromEntries(headers.entries()));
-    
-    // Set appropriate content type for the request
     if (method !== 'GET') {
       headers.set('Content-Type', 'application/json');
     }
     
-    // Direct connection to Bunny.net
+    // Make request to Bunny.net
     let response;
     try {
       response = await fetch(targetUrl, {
         method: method,
         headers: headers,
         body: method !== 'GET' ? request.body : undefined,
-        // Add a longer timeout for requests
         signal: AbortSignal.timeout(180000), // 3 minute timeout
       });
       
-      // Log the response details
-      console.log(`[Base Proxy DEBUG] Response status: ${response.status}, headers:`, 
-                Object.fromEntries(response.headers.entries()));
+      console.log(`[Base Proxy Dynamic] Response status: ${response.status}`);
     } catch (fetchError) {
-      console.error('[Base Proxy] Fetch error:', fetchError);
+      console.error('[Base Proxy Dynamic] Fetch error:', fetchError);
       return NextResponse.json({
         error: 'Proxy Error',
         message: `Connection error: ${fetchError.message}`,
@@ -102,34 +85,29 @@ async function handleProxyRequest(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Base Proxy] Error response (${response.status}): ${errorText.substring(0, 200)}...`);
+      console.error(`[Base Proxy Dynamic] Error response (${response.status}): ${errorText.substring(0, 200)}...`);
       
-      // Try to parse as JSON, but fall back to text if it's not valid JSON
       let errorObject = { error: 'Failed to fetch from Bunny.net', details: errorText.substring(0, 500) };
       try {
-        // Only try to parse as JSON if it doesn't look like HTML
         if (!errorText.trim().startsWith('<')) {
           errorObject = JSON.parse(errorText);
         }
       } catch (e) {
-        // If parsing fails, use the text as is
+        // Use text as is
       }
       
       return NextResponse.json(errorObject, { status: response.status });
     }
 
-    // Get the content type to determine how to handle the response
+    // Handle response based on content type
     const contentType = response.headers.get('Content-Type') || '';
-    console.log(`[Base Proxy DEBUG] Response content type: ${contentType}`);
     
-    // Special handling for videolibrary endpoint to debug HTML response issue
+    // Special handling for videolibrary endpoints
     if (targetPath.includes('videolibrary')) {
       const rawText = await response.text();
-      console.log(`[Base Proxy DEBUG] Raw videolibrary response (first 200 chars): ${rawText.substring(0, 200)}...`);
       
-      // Check if it's HTML
       if (rawText.trim().startsWith('<!DOCTYPE') || rawText.trim().startsWith('<html')) {
-        console.error('[Base Proxy] Received HTML instead of JSON from Bunny API');
+        console.error('[Base Proxy Dynamic] Received HTML instead of JSON from Bunny API');
         return NextResponse.json({
           error: 'Invalid API response',
           message: 'Received HTML instead of JSON. Check your API key and permissions.',
@@ -137,13 +115,11 @@ async function handleProxyRequest(request: NextRequest) {
         }, { status: 502 });
       }
       
-      // Try to parse as JSON
       try {
         const jsonData = JSON.parse(rawText);
-        console.log('[Base Proxy DEBUG] Successfully parsed JSON response');
         return NextResponse.json(jsonData);
       } catch (e) {
-        console.error('[Base Proxy] Failed to parse response as JSON:', e);
+        console.error('[Base Proxy Dynamic] Failed to parse response as JSON:', e);
         return NextResponse.json({
           error: 'Invalid JSON in response',
           message: e instanceof Error ? e.message : 'Unknown parsing error',
@@ -158,11 +134,11 @@ async function handleProxyRequest(request: NextRequest) {
         const data = await response.json();
         return NextResponse.json(data);
       } catch (e) {
-        console.error('[Base Proxy] Failed to parse JSON response:', e);
+        console.error('[Base Proxy Dynamic] Failed to parse JSON response:', e);
         const text = await response.text();
         return NextResponse.json({
           error: 'Invalid JSON response',
-          details: text.substring(0, 500) // Truncate to avoid very large responses
+          details: text.substring(0, 500)
         }, { status: 502 });
       }
     }
@@ -171,14 +147,12 @@ async function handleProxyRequest(request: NextRequest) {
     if (contentType.includes('text/')) {
       const text = await response.text();
       
-      // Try to parse as JSON even if content type is not JSON
       try {
         const data = JSON.parse(text);
         return NextResponse.json(data);
       } catch (e) {
-        // If not JSON, return a JSON wrapper for the text
         return NextResponse.json({
-          text: text.substring(0, 1000), // Truncate long responses
+          text: text.substring(0, 1000),
           contentType
         });
       }
@@ -193,10 +167,10 @@ async function handleProxyRequest(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('[Base Proxy] Error:', error);
+    console.error('[Base Proxy Dynamic] Error:', error);
     return NextResponse.json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-} 
+}

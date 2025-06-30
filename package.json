@@ -8,6 +8,8 @@
     "dev:client": "vite",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build": "vite build",
+    "build:vite": "vite build",
+    "build:next": "next build",
     "preview": "vite preview",
     "start": "node server.js"
   },

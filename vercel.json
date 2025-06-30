@@ -1,19 +1,23 @@
 {
-  "buildCommand": "vite build",
-  "devCommand": "vite --port $PORT",
-  "framework": "vite",
-  "outputDirectory": "dist",
-  "env": {
-    "VITE_VERCEL_ENV": "true"
-  },
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "@vercel/node@5.3.0"
+  "framework": null,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     },
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@5.3.0"
+    {
+      "src": "pages/api/**/*.js",
+      "use": "@vercel/node"
     }
-  },
+  ],
+  "routes": [
+    { "src": "/api/proxy/base/(.*)", "dest": "/api/proxy/base/$1" },
+    { "src": "/api/proxy/video/(.*)", "dest": "/api/proxy/video/$1" },
+    { "src": "/(.*)", "dest": "/dist/$1" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -23,9 +27,5 @@
         { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, AccessKey" }
       ]
     }
-  ],
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
