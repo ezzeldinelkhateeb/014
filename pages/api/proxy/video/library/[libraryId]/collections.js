@@ -1,14 +1,10 @@
 export default async function handler(req, res) {
-  console.log('Base Proxy API called:', {
+  console.log('Collections API called:', {
     method: req.method,
     url: req.url,
-    query: req.query,
-    path: req.query.path
+    query: req.query
   });
 
-  const { path } = req.query;
-  const fullPath = Array.isArray(path) ? path.join('/') : path;
-  
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -19,6 +15,7 @@ export default async function handler(req, res) {
   }
   
   try {
+    const { libraryId } = req.query;
     const accessKey = req.headers.accesskey || req.headers.AccessKey || req.headers['accesskey'];
     
     if (!accessKey) {
@@ -26,7 +23,17 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Missing AccessKey header' });
     }
     
-    const bunnyUrl = `https://api.bunnycdn.com/${fullPath}`;
+    if (!libraryId) {
+      return res.status(400).json({ error: 'Missing libraryId parameter' });
+    }
+    
+    // Build query string
+    const queryParams = new URLSearchParams();
+    if (req.query.page) queryParams.append('page', req.query.page);
+    if (req.query.itemsPerPage) queryParams.append('itemsPerPage', req.query.itemsPerPage);
+    if (req.query.orderBy) queryParams.append('orderBy', req.query.orderBy);
+    
+    const bunnyUrl = `https://video.bunnycdn.com/library/${libraryId}/collections${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     console.log('Proxying to:', bunnyUrl);
     console.log('Using API key:', accessKey.substring(0, 8) + '...');
     
@@ -61,7 +68,7 @@ export default async function handler(req, res) {
     return res.json(data);
     
   } catch (error) {
-    console.error('Base Proxy error:', error);
+    console.error('Collections Proxy error:', error);
     return res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 

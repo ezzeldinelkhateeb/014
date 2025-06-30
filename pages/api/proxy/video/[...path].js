@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     const apiPath = pathArray.join('/');
     
     // Get API key from request headers first, then environment as fallback
-    const apiKey = req.headers.accesskey || req.headers.AccessKey || process.env.VITE_BUNNY_API_KEY;
+    const apiKey = req.headers.accesskey || req.headers.AccessKey || req.headers['accesskey'] || process.env.VITE_BUNNY_API_KEY;
     if (!apiKey) {
       console.error('Missing API key in headers or environment');
       return res.status(500).json({ error: 'API key not configured' });

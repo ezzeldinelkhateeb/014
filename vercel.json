@@ -1,5 +1,4 @@
 {
-  "framework": null,
   "builds": [
     {
       "src": "package.json",
@@ -13,17 +12,22 @@
       "use": "@vercel/node"
     }
   ],
-  "headers": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, AccessKey" }
-      ]
+      "src": "/api/test",
+      "dest": "/api/test"
+    },
+    {
+      "src": "/api/proxy/base/(.*)",
+      "dest": "/api/proxy/base/$1"
+    },
+    {
+      "src": "/api/proxy/video/(.*)",
+      "dest": "/api/proxy/video/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/$1"
     }
-  ],
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

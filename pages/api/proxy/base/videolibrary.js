@@ -1,14 +1,10 @@
 export default async function handler(req, res) {
-  console.log('Base Proxy API called:', {
+  console.log('Videolibrary API called:', {
     method: req.method,
     url: req.url,
-    query: req.query,
-    path: req.query.path
+    query: req.query
   });
 
-  const { path } = req.query;
-  const fullPath = Array.isArray(path) ? path.join('/') : path;
-  
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -26,7 +22,13 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Missing AccessKey header' });
     }
     
-    const bunnyUrl = `https://api.bunnycdn.com/${fullPath}`;
+    // Build query string
+    const queryParams = new URLSearchParams();
+    if (req.query.page) queryParams.append('page', req.query.page);
+    if (req.query.perPage) queryParams.append('perPage', req.query.perPage);
+    if (req.query.orderBy) queryParams.append('orderBy', req.query.orderBy);
+    
+    const bunnyUrl = `https://api.bunny.net/videolibrary${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     console.log('Proxying to:', bunnyUrl);
     console.log('Using API key:', accessKey.substring(0, 8) + '...');
     
@@ -61,7 +63,7 @@ export default async function handler(req, res) {
     return res.json(data);
     
   } catch (error) {
-    console.error('Base Proxy error:', error);
+    console.error('Videolibrary Proxy error:', error);
     return res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 

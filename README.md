@@ -15,8 +15,8 @@ vercel --prod --force
 ```
 
 ## Deployment URLs
-- **Production**: https://014-8mesmyuv3-ezzeldinelkhateebs-projects.vercel.app
-- **Inspect**: https://vercel.com/ezzeldinelkhateebs-projects/014/BmnmosHBjNCTEGAEPYZpeGad4P3C
+- **Production**: https://014-ci7fe1z6f-ezzeldinelkhateebs-projects.vercel.app
+- **Inspect**: https://vercel.com/ezzeldinelkhateebs-projects/014/FmkNzmVdXS5YicB7uGibpAFaXW8f
 
 ## Project Structure
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
