@@ -1,7 +1,7 @@
 {
   "functions": {
     "pages/api/**/*.js": {
-      "runtime": "@vercel/node@20.x"
+      "runtime": "@vercel/node"
     }
   },
   "builds": [
@@ -19,8 +19,10 @@
   },
   "build": {
     "env": {
-      "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
-      "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
+      "VITE_BUN seksualization: [
+        "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
+        "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
+      ]
     }
   }
 }
