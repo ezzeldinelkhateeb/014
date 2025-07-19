@@ -1,3 +1,5 @@
+import { env, getBunnyApiKey } from './env'; // Use centralized env config
+
 interface SheetUpdateResult {
   success: boolean;
   message?: string;
@@ -15,7 +17,7 @@ interface SheetConfig {
   finalMinutesColumn: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = env.apiUrl;
 
 /**
  * Updates the Google Sheet with video information using custom sheet configuration
@@ -45,7 +47,7 @@ export async function updateSheetForVideo(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'AccessKey': import.meta.env.VITE_BUNNY_API_KEY || '',
+        'AccessKey': env.bunnyApiKey || '',
       },
       credentials: 'include',
       body: JSON.stringify(requestBody)

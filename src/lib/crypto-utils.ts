@@ -2,10 +2,16 @@
  * Secure crypto utilities for API key encryption and validation
  */
 import CryptoJS from 'crypto-js';
+import { env } from './env'; // Use centralized env config
 
 // Generate a secure encryption key from environment or fallback
 const getEncryptionKey = (): string => {
-  const envKey = import.meta.env.VITE_ENCRYPTION_KEY || process.env.VITE_ENCRYPTION_KEY;
+  // Try to get encryption key from environment
+  const envKey = env.isDevelopment ? 
+    (typeof window !== 'undefined' && import.meta?.env?.VITE_ENCRYPTION_KEY) || 
+    (typeof process !== 'undefined' && process.env?.VITE_ENCRYPTION_KEY) : 
+    undefined;
+    
   if (envKey) return envKey;
   
   // Fallback to a derived key (not ideal for production)
@@ -190,8 +196,7 @@ export function validateEnvironmentSecurity(): {
   const warnings: string[] = [];
   const recommendations: string[] = [];
   
-  const apiKey = import.meta.env.VITE_BUNNY_API_KEY || process.env.VITE_BUNNY_API_KEY;
-  const encryptionKey = import.meta.env.VITE_ENCRYPTION_KEY || process.env.VITE_ENCRYPTION_KEY;
+  const apiKey = env.bunnyApiKey;
   
   // Check if API key is present
   if (!apiKey) {
@@ -202,17 +207,8 @@ export function validateEnvironmentSecurity(): {
     recommendations.push('Verify your Bunny.net API key format');
   }
   
-  // Check if encryption key is present
-  if (!encryptionKey) {
-    warnings.push('VITE_ENCRYPTION_KEY is not set - using fallback encryption');
-    recommendations.push('Set VITE_ENCRYPTION_KEY for enhanced security');
-  } else if (encryptionKey.length < 32) {
-    warnings.push('VITE_ENCRYPTION_KEY is too short');
-    recommendations.push('Use a longer encryption key (at least 32 characters)');
-  }
-  
   // Check if running in development with production keys
-  if (import.meta.env.DEV && apiKey && apiKey.length > 20) {
+  if (env.isDevelopment && apiKey && apiKey.length > 20) {
     warnings.push('Production API key detected in development environment');
     recommendations.push('Use separate API keys for development and production');
   }

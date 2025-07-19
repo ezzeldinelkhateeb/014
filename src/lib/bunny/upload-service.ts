@@ -2,6 +2,7 @@ import { HttpClient } from './http-client';
 import type { UploadProgress } from './types';
 import { cache } from '../cache';
 import { VIDEO_BASE_URL } from './constants';
+import { env, getBunnyApiKey } from '../env'; // Use centralized env config
 
 interface UploadResponse {
   guid: string;
@@ -29,12 +30,12 @@ export class UploadService {
     }
     
     // 3. Always fall back to environment variable without prompting
-    const envKey = import.meta.env.VITE_BUNNY_API_KEY || '';
-    if (!envKey) {
-      console.warn('[UploadService] No Bunny.net API key found in environment variable VITE_BUNNY_API_KEY');
+    try {
+      return env.bunnyApiKey || getBunnyApiKey();
+    } catch (error) {
+      console.warn('[UploadService] No valid Bunny.net API key found:', error.message);
+      return '';
     }
-    
-    return envKey;
   }
 
   /**
