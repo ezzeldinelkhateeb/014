@@ -1,175 +1,49 @@
-import { config } from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, resolve, join } from 'path';
-import fs from 'fs';
+/**
+ * Legacy environment configuration module
+ * This file is deprecated - use src/lib/env.ts instead
+ * Kept for compatibility until all imports are updated
+ */
 
-// Get __dirname equivalent in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { env, getBunnyApiKey, getGoogleSheetsConfig, EnvValidator } from './env';
 
-// Try multiple possible .env file locations
-const possiblePaths = [
-  resolve(__dirname, '../../../.env'),
-  resolve(__dirname, '../../.env'),
-  resolve(process.cwd(), '.env')
-];
-
-let envPath = '';
-for (const path of possiblePaths) {
-  if (fs.existsSync(path)) {
-    envPath = path;
-    break;
-  }
-}
-
-if (!envPath) {
-  console.warn('No .env file found in any of these locations:', possiblePaths);
-} else {
-  console.log('Loading .env from:', envPath);
-  config({ path: envPath });
-}
-
-// Debug: Log environment variables (without sensitive data)
-console.log('Environment variables loaded:', {
-  GOOGLE_SHEETS_SPREADSHEET_ID: process.env.GOOGLE_SHEETS_SPREADSHEET_ID ? '[SET]' : '[NOT SET]',
-  GOOGLE_SHEETS_CREDENTIALS_JSON: process.env.GOOGLE_SHEETS_CREDENTIALS_JSON ? '[SET]' : '[NOT SET]',
-  GOOGLE_SHEET_NAME: process.env.GOOGLE_SHEET_NAME || 'OPERATIONS',
-  VITE_BUNNY_API_KEY: process.env.VITE_BUNNY_API_KEY ? `[SET - ${process.env.VITE_BUNNY_API_KEY.length} chars]` : '[NOT SET]'
-});
-
+// Re-export for compatibility
 export const envConfig = {
-  googleSheets: {
-    spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
-    sheetName: process.env.GOOGLE_SHEET_NAME || 'OPERATIONS',
-    credentials: process.env.GOOGLE_SHEETS_CREDENTIALS_JSON
-      ? JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS_JSON)
-      : null
-  },
+  googleSheets: getGoogleSheetsConfig(),
   bunny: {
-    apiKey: process.env.VITE_BUNNY_API_KEY,
+    apiKey: env.bunnyApiKey,
   }
 };
 
-// Helper functions for API key management
-export function ensureBunnyApiKey(): string {
-  const apiKey = process.env.VITE_BUNNY_API_KEY;
-  
-  if (!apiKey) {
-    const errorMessage = 'VITE_BUNNY_API_KEY environment variable is not set or empty. Please check your .env file.';
-    console.error('[Environment Error]', errorMessage);
-    throw new Error(errorMessage);
-  }
-
-  return apiKey;
-}
-
-export function getBunnyApiKey(): string | null {
-  return process.env.VITE_BUNNY_API_KEY || null;
-}
-
-export function checkEnvironmentHealth(): {
-  hasRequiredVars: boolean;
-  missingVars: string[];
-  warnings: string[];
-} {
-  const requiredVars = ['VITE_BUNNY_API_KEY'];
-  const optionalVars = ['GOOGLE_SHEETS_SPREADSHEET_ID', 'GOOGLE_SHEETS_CREDENTIALS_JSON'];
-  
-  const missingVars: string[] = [];
-  const warnings: string[] = [];
-  
-  // Check required variables
-  for (const varName of requiredVars) {
-    if (!process.env[varName]) {
-      missingVars.push(varName);
-    }
-  }
-  
-  // Check optional variables
-  for (const varName of optionalVars) {
-    if (!process.env[varName]) {
-      warnings.push(`Optional variable ${varName} is not set`);
-    }
-  }
-  
-  const result = {
-    hasRequiredVars: missingVars.length === 0,
-    missingVars,
-    warnings
-  };
-  
-  if (!result.hasRequiredVars) {
-    console.error('[Environment Health Check] Missing required variables:', missingVars);
-  }
-  
-  if (warnings.length > 0) {
-    console.warn('[Environment Health Check] Warnings:', warnings);
-  }
-  
-  return result;
-}
-
-// Validate required environment variables
-export function validateEnvConfig() {
-  const { spreadsheetId, credentials } = envConfig.googleSheets;
-
-  if (!spreadsheetId || !credentials) {
-    console.error('Required environment configuration missing:', {
-      hasSpreadsheetId: !!spreadsheetId,
-      hasCredentials: !!credentials,
-      credentialsType: credentials ? typeof credentials : 'null',
-    });
-    
-    const missingVars = [
-      !spreadsheetId && 'GOOGLE_SHEETS_SPREADSHEET_ID',
-      !credentials && 'GOOGLE_SHEETS_CREDENTIALS_JSON',
-    ].filter(Boolean);
-
-    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}\nPlease check your .env file and ensure all required variables are set.`);
-  }
-
-  // Validate credentials structure
-  const requiredFields = [
-    'private_key',
-    'client_email',
-    'project_id'
-  ];
-
-  const missingFields = requiredFields.filter(field => !credentials[field]);
-  
-  if (missingFields.length > 0) {
-    throw new Error(
-      `Invalid Google Sheets credentials: missing ${missingFields.join(', ')}\n` +
-      'Please ensure your credentials JSON contains all required fields.'
-    );
-  }
-
-  // Additional optional validations
-  if (!credentials.private_key.includes('-----BEGIN PRIVATE KEY-----')) {
-    console.warn('Warning: private_key format may be invalid');
-  }
-
-  if (!credentials.client_email.includes('@') || !credentials.client_email.includes('.iam.gserviceaccount.com')) {
-    console.warn('Warning: client_email format may be invalid');
-  }
-
-  if (!envConfig.bunny.apiKey) {
-    console.error('Missing required environment variable: VITE_BUNNY_API_KEY');
+// Re-export helper functions for compatibility  
+export const ensureBunnyApiKey = getBunnyApiKey;
+export const getBunnyApiKey = () => env.bunnyApiKey;
+export const checkEnvironmentHealth = EnvValidator.validateRequired;
+export const validateEnvConfig = () => {
+  const validation = EnvValidator.validateRequired();
+  if (!validation.isValid) {
+    console.error('Environment validation failed:', validation.errors);
     return false;
   }
-
   return true;
-}
+};
 
 // Add more specific environment getters
 export const getRequiredEnvVar = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Required environment variable ${name} is not set`);
+  if (typeof process !== 'undefined' && process.env?.[name]) {
+    return process.env[name];
   }
-  return value;
+  if (typeof window !== 'undefined' && import.meta?.env?.[name]) {
+    return import.meta.env[name];
+  }
+  throw new Error(`Required environment variable ${name} is not set`);
 };
 
 export const getOptionalEnvVar = (name: string, defaultValue: string): string => {
-  return process.env[name] || defaultValue;
+  if (typeof process !== 'undefined' && process.env?.[name]) {
+    return process.env[name];
+  }
+  if (typeof window !== 'undefined' && import.meta?.env?.[name]) {
+    return import.meta.env[name];
+  }
+  return defaultValue;
 };

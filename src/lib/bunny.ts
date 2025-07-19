@@ -1,4 +1,5 @@
-const BUNNY_API_KEY = import.meta.env.VITE_BUNNY_API_KEY;
+import { getBunnyApiKey } from './env'; // Use centralized env config
+
 const BUNNY_API_URL = "https://video.bunnycdn.com/library";
 
 interface BunnyVideoResponse {
@@ -11,6 +12,8 @@ export const uploadVideo = async (
   libraryId: string,
 ): Promise<BunnyVideoResponse> => {
   try {
+    const BUNNY_API_KEY = getBunnyApiKey(); // Get validated API key
+    
     // First create the video in Bunny.net
     const createResponse = await fetch(`${BUNNY_API_URL}/${libraryId}/videos`, {
       method: "POST",
