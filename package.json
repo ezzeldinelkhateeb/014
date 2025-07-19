@@ -8,7 +8,7 @@
     "dev:client": "vite",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build": "vite build",
-    "build:vite": "vite build", 
+    "build:vite": "vite build",
     "build:next": "next build",
     "preview": "vite preview",
     "start": "node server.js"
@@ -68,6 +68,7 @@
     "http-proxy-middleware": "^3.0.5",
     "lucide-react": "^0.394.0",
     "multer": "^1.4.5-lts.2",
+    "next-http-proxy-middleware": "^1.2.7",
     "node-fetch": "^2.7.0",
     "nodemon": "^3.1.9",
     "react": "^18.2.0",

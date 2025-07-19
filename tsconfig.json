@@ -25,6 +25,10 @@
       "@types/gapi.client",
       "@types/gapi.client.sheets",
       "next"
+    ],
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
     ]
   },
   "include": [
