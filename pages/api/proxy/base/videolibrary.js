@@ -24,9 +24,9 @@ export default async function handler(req, res) {
     
     // Build query string
     const queryParams = new URLSearchParams();
-    if (req.query.page) queryParams.append('page', req.query.page);
-    if (req.query.perPage) queryParams.append('perPage', req.query.perPage);
-    if (req.query.orderBy) queryParams.append('orderBy', req.query.orderBy);
+    if (req.query.page) queryParams.append('page', String(req.query.page));
+    if (req.query.perPage) queryParams.append('perPage', String(req.query.perPage));
+    if (req.query.orderBy) queryParams.append('orderBy', String(req.query.orderBy));
     
     const bunnyUrl = `https://api.bunny.net/videolibrary${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     console.log('Proxying to:', bunnyUrl);
