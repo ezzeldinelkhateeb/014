@@ -11,15 +11,5 @@
       "src": "pages/api/**/*.js",
       "use": "@vercel/node"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "http://127.0.0.1:3004/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/dist/$1"
-    }
   ]
 }
