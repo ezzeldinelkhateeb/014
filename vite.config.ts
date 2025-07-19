@@ -179,7 +179,7 @@ export default defineConfig({
     watch: {
       usePolling: true, // Enable polling as a fallback
     },
-    port: 800,
+    port: 5173,
   },
   build: {
     outDir: 'dist',

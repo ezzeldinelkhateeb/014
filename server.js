@@ -67,7 +67,8 @@ const defaultBunnyApiKey = process.env.VITE_BUNNY_API_KEY; // Keep the default k
 console.log("🔑 Bunny API Key Status:", {
   hasEnvKey: !!defaultBunnyApiKey,
   keyLength: defaultBunnyApiKey ? defaultBunnyApiKey.length : 0,
-  keyPreview: defaultBunnyApiKey ? defaultBunnyApiKey.substring(0, 8) + '...' : 'Not set'
+  keyPreview: defaultBunnyApiKey ? maskApiKey(defaultBunnyApiKey) : 'Not set',
+  isValidFormat: defaultBunnyApiKey ? validateApiKeyFormat(defaultBunnyApiKey) : false
 });
 
 if (!defaultBunnyApiKey) {
@@ -78,6 +79,7 @@ if (!defaultBunnyApiKey) {
 // Import the custom middleware
 import { createBunnyVideoProxyMiddleware } from './src/server-middleware.js';
 import { createApiKeyValidationMiddleware } from './src/middleware/api-key-validation.js';
+import { maskApiKey, sanitizeForLogging, validateApiKeyFormat } from './src/lib/crypto-utils.js';
 
 // Apply API key validation middleware for Bunny.net routes
 app.use('/api/proxy', createApiKeyValidationMiddleware());
@@ -85,16 +87,47 @@ app.use('/api/proxy', createApiKeyValidationMiddleware());
 // Apply our custom middleware before the proxy middleware
 app.use(createBunnyVideoProxyMiddleware({ defaultApiKey: defaultBunnyApiKey }));
 
+// Authentication check endpoint
+app.get('/api/auth-check', (req, res) => {
+  try {
+    const apiKey = req.headers['accesskey'] || req.headers['AccessKey'] || defaultBunnyApiKey;
+    
+    if (!apiKey) {
+      return res.status(401).json({
+        authenticated: false,
+        message: 'No API key provided'
+      });
+    }
+
+    const isValidFormat = validateApiKeyFormat(apiKey);
+    
+    res.json({
+      authenticated: true,
+      hasApiKey: true,
+      keyLength: apiKey.length,
+      keyMask: maskApiKey(apiKey),
+      isValidFormat,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[Auth Check] Error:', error);
+    res.status(500).json({
+      authenticated: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
 // Specialized endpoint for creating video entries
 app.post('/api/proxy/create-video', async (req, res) => {
   try {
     const { libraryId, title, collectionId, accessToken } = req.body;
 
-    // Log request headers
-    console.log('[CreateVideo] Request headers:', {
+    // Log request headers (sanitized)
+    console.log('[CreateVideo] Request headers:', sanitizeForLogging({
       ...req.headers,
-      accesskey: req.headers.accesskey ? '***' : undefined
-    });
+      accesskey: req.headers.accesskey ? maskApiKey(req.headers.accesskey) : undefined
+    }));
 
     // Log full request details
     console.log('[CreateVideo] Full request details:', {
@@ -127,16 +160,16 @@ app.post('/api/proxy/create-video', async (req, res) => {
     };
 
     // Log the full request we're about to send
-    console.log('[CreateVideo] Sending request to Bunny.net:', {
+    console.log('[CreateVideo] Sending request to Bunny.net:', sanitizeForLogging({
       url: `https://video.bunnycdn.com/library/${libraryId}/videos`,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'AccessKey': '***'
+        'AccessKey': accessToken ? maskApiKey(accessToken) : 'Not provided'
       },
       data: requestData
-    });
+    }));
 
     try {
       // Make request to Bunny.net
