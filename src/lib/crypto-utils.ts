@@ -6,11 +6,9 @@ import { env } from './env'; // Use centralized env config
 
 // Generate a secure encryption key from environment or fallback
 const getEncryptionKey = (): string => {
-  // Try to get encryption key from environment
-  const envKey = env.isDevelopment ? 
-    (typeof window !== 'undefined' && import.meta?.env?.VITE_ENCRYPTION_KEY) || 
-    (typeof process !== 'undefined' && process.env?.VITE_ENCRYPTION_KEY) : 
-    undefined;
+  // Try to get encryption key from environment (works in both dev and production)
+  const envKey = (typeof window !== 'undefined' && import.meta?.env?.VITE_ENCRYPTION_KEY) || 
+    (typeof process !== 'undefined' && process.env?.VITE_ENCRYPTION_KEY);
     
   if (envKey) return envKey;
   

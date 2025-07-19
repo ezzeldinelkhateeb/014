@@ -29,9 +29,9 @@ export class UploadService {
       }
     }
     
-    // 3. Always fall back to environment variable without prompting
+    // 3. Always fall back to environment variable with validation
     try {
-      return env.bunnyApiKey || getBunnyApiKey();
+      return getBunnyApiKey(); // Always validate the API key
     } catch (error) {
       console.warn('[UploadService] No valid Bunny.net API key found:', error.message);
       return '';
