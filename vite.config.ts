@@ -30,7 +30,7 @@ export default defineConfig({
   base:
     process.env.NODE_ENV === "development"
       ? "/"
-      : process.env.VITE_BASE_PATH || "/",
+      : process.env.VITE_BASE_PATH || "/014/",
   optimizeDeps: {
     entries: ["src/main.tsx", "src/tempobook/**/*"],
   },
