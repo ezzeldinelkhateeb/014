@@ -13,10 +13,10 @@ const nextConfig = {
   // Environment variables
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
-  },
-  
-  // Headers configuration for API routes
-  async headers() {
+  }
+};
+
+module.exports = nextConfig;
     return [
       {
         source: '/api/:path*',

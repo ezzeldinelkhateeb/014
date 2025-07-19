@@ -1,20 +1,9 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
   "routes": [
-    {
-      "src": "/api/proxy/base/([^/]+)/([^/]+)",
-      "dest": "/api/proxy/base/[...path].js?path=$1/$2"
-    },
-    {
-      "src": "/api/proxy/video/([^/]+)/([^/]+)/([^/]+)",
-      "dest": "/api/proxy/video/[...path].js?path=$1/$2/$3"
-    },
-    {
-      "src": "/api/proxy/video/library/([^/]+)/collections",
-      "dest": "/api/proxy/video/library/[libraryId]/collections.js?libraryId=$1"
-    },
     {
       "src": "/api/(.*)",
       "dest": "/api/$1.js"
