@@ -49,10 +49,12 @@ POSTGRES_URL_NON_POOLING=postgres://postgres.your_project_id:your_password@your_
 ## 🚀 Deployment Instructions
 
 ### Vercel Deployment
-1. The `vercel.json` file is now properly configured with all environment variables
-2. Push the changes to GitHub
-3. Vercel will automatically deploy with the correct configuration
-4. The API endpoints will work correctly on Vercel
+1. The `vercel.json` file has been updated to properly handle both Vite frontend and Next.js API routes
+2. Configuration now uses `buildCommand` and `outputDirectory` instead of legacy `builds` configuration
+3. API routes are configured with proper serverless functions using Node.js 18.x runtime
+4. CORS headers and rewrites are properly configured for API endpoints
+5. Environment variables are documented in `.env.production.example`
+6. Push the changes to GitHub - Vercel will automatically deploy with the correct configuration
 
 ### Local Development
 ```bash
