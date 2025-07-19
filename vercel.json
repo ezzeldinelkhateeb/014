@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "package.json",
@@ -14,8 +15,32 @@
   ],
   "routes": [
     {
+      "src": "/api/proxy/base/videolibrary",
+      "dest": "/pages/api/proxy/base/videolibrary.js"
+    },
+    {
+      "src": "/api/auth-check",
+      "dest": "/pages/api/auth-check.js"
+    },
+    {
+      "src": "/api/proxy/base/([^/]*)",
+      "dest": "/pages/api/proxy/base/[...path].js?path=$1"
+    },
+    {
+      "src": "/api/proxy/base/([^/]+)/([^/]+)",
+      "dest": "/pages/api/proxy/base/[...path].js?path=$1/$2"
+    },
+    {
+      "src": "/api/proxy/video/([^/]+)/([^/]+)/([^/]+)",
+      "dest": "/pages/api/proxy/video/[...path].js?path=$1/$2/$3"
+    },
+    {
+      "src": "/api/proxy/video/library/([^/]+)/collections",
+      "dest": "/pages/api/proxy/video/library/[libraryId]/collections.js?libraryId=$1"
+    },
+    {
       "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "dest": "/pages/api/$1.js"
     },
     {
       "src": "/(.*)",
