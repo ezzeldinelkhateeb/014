@@ -38,10 +38,10 @@ export class QueueManager {
     for (const file of files) {
       let queueItem: QueueItem;
       try {
-        const parseResult = parseFilename(file.name);
+        const parseResult = parseFilename(file.name, selectedYear);
         // Always try to determine library name and collection, even if parsing is partial
         const suggestedLibraryName = determineLibrary(parseResult || { type: 'FULL', academicYear: selectedYear });
-        const collectionResult = determineCollection(parseResult || { type: 'FULL', academicYear: selectedYear });
+        const collectionResult = determineCollection(parseResult || { type: 'FULL', academicYear: selectedYear }, selectedYear);
 
         if (!parseResult) {
           // Handle cases where even basic parsing fails, though determineLibrary/Collection have fallbacks

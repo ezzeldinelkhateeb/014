@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
-import { Download, Loader2, Save, FileCheck } from "lucide-react";
+import { Download, Loader2, Save, FileCheck, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Year } from "../types/common";
 import { UploadManager } from "../lib/upload-manager";
-import { bunnyService } from "../lib/bunny-service";
+import { bunnyService } from "../lib/bunny/service";
+import { ViewsReport } from "./ViewsReport";
 
 // Import UI components
 import LibrarySettings from './video-processing/LibrarySettings';
@@ -26,6 +27,10 @@ import { useVideos } from "../hooks/useVideos";
 import { useFileUploader } from "../hooks/useFileUploader";
 import { useUploadQueue } from "../hooks/useUploadQueue";
 import { useSheetUpdateReportManager } from '../hooks/useSheetUpdateReportManager';
+
+// Import sheet configuration components
+import { SheetConfigSelector } from './sheet-settings/SheetConfigSelector';
+import { sheetConfigManager, type SheetConfig } from '@/lib/sheet-config/sheet-config-manager';
 
 // Types
 import { UploadGroup as ComponentUploadGroup, LibraryInterface, CollectionInterface } from './video-processing/types';
@@ -49,7 +54,7 @@ const VideoProcessingForm = ({
   collections = [],
   selectedLibrary = "",
   selectedCollection = "",
-  selectedYear = "2025",
+  selectedYear = "2026",
   onLibraryChange = () => {},
   onCollectionChange = () => {},
   onYearChange = () => {},
@@ -62,11 +67,18 @@ const VideoProcessingForm = ({
   const [uploadGroups, setUploadGroups] = useState<ComponentUploadGroup[]>([]);
   const [isGloballyPaused, setIsGloballyPaused] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingViews, setIsExportingViews] = useState(false);
+  const [showViewsReport, setShowViewsReport] = useState(false);
+  const [viewsReportData, setViewsReportData] = useState(null);
   const [uploadSettings, setUploadSettings] = useState({
     chunkSize: 20 * 1024 * 1024, // 20MB default
     maxConcurrentUploads: 4,
     useStreamingUpload: true
   });
+
+  // Sheet configuration state
+  const [sheetConfigs, setSheetConfigs] = useState<SheetConfig[]>([]);
+  const [selectedSheetId, setSelectedSheetId] = useState<string>('');
 
   // Add a ref to track whether the current results have been shown
   const reportShownRef = useRef(false);
@@ -79,7 +91,7 @@ const VideoProcessingForm = ({
     isUpdatingSheet,
     isUpdatingFinalMinutes,
     sheetUpdateResults
-  } = useSheetUpdater();
+  } = useSheetUpdater(() => uploadManagerRef.current?.getCurrentSheetConfig() || null);
 
   const { 
     filteredLibraries, 
@@ -151,9 +163,46 @@ const VideoProcessingForm = ({
       },
       (videoTitle: string, videoGuid: string, libraryId: string) => {
         console.log(`[VideoProcessingForm] Video uploaded callback: ${videoTitle}`);
-        updateSheetForVideo(videoTitle, videoGuid, libraryId);
+        const currentConfig = uploadManagerRef.current?.getCurrentSheetConfig() || undefined;
+        updateSheetForVideo(videoTitle, videoGuid, libraryId, currentConfig);
       }
     );
+
+    // Load saved upload settings
+    const savedSettings = localStorage.getItem('upload_settings');
+    if (savedSettings) {
+      try {
+        const parsedSettings = JSON.parse(savedSettings);
+        setUploadSettings(parsedSettings);
+      } catch (e) {
+        console.error('Error loading saved upload settings:', e);
+      }
+    }
+
+    // Load sheet configurations and apply default after UploadManager is initialized
+    const configs = sheetConfigManager.getConfigs();
+    setSheetConfigs(configs);
+    
+    const defaultConfig = sheetConfigManager.getDefaultConfig();
+    if (defaultConfig) {
+      setSelectedSheetId(defaultConfig.id);
+      // تطبيق إعدادات الشيت الافتراضية على UploadManager الآن بعد تهيئته
+      uploadManagerRef.current.updateSheetConfig(defaultConfig);
+      console.log(`[VideoProcessingForm] 🎯 Applied default sheet config: "${defaultConfig.name}"`);
+      console.log(`[VideoProcessingForm] 📊 Default config details:`, {
+        id: defaultConfig.id,
+        name: defaultConfig.name,
+        spreadsheetId: defaultConfig.spreadsheetId,
+        sheetName: defaultConfig.sheetName,
+        columns: {
+          videoName: defaultConfig.videoNameColumn,
+          embedCode: defaultConfig.embedCodeColumn,
+          finalMinutes: defaultConfig.finalMinutesColumn
+        }
+      });
+    } else {
+      console.warn(`[VideoProcessingForm] ⚠️ No default sheet config found!`);
+    }
 
     // For debugging - expose the upload manager ref
     if (typeof window !== 'undefined') {
@@ -166,7 +215,7 @@ const VideoProcessingForm = ({
         delete (window as any).__uploadManagerRef;
       }
     };
-  }, [updateSheetForVideo]);
+  }, []);
 
   // Apply upload settings
   useEffect(() => {
@@ -174,19 +223,6 @@ const VideoProcessingForm = ({
       uploadManagerRef.current.setUploadSettings(uploadSettings);
     }
   }, [uploadSettings]);
-
-  // Load saved settings on startup
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('upload_settings');
-    if (savedSettings) {
-      try {
-        const parsedSettings = JSON.parse(savedSettings);
-        setUploadSettings(parsedSettings);
-      } catch (e) {
-        console.error('Error loading saved upload settings:', e);
-      }
-    }
-  }, []);
 
   // Fetch videos when library/collection changes
   useEffect(() => {
@@ -236,6 +272,34 @@ const VideoProcessingForm = ({
     });
   };
 
+  // Handle year changes (dropdown)
+  const handleYearChange = useCallback(
+    (year: Year) => {
+      console.log(`[VideoProcessingForm] Year changed to: ${year}`);
+
+      toast({
+        title: "📅 Year Changed",
+        description: `Selected academic year is now ${year}.`,
+        variant: "default",
+        duration: 3000,
+      });
+
+      // Update parent state
+      onYearChange(year);
+
+      // Automatically select collection containing the year, if available
+      if (selectedLibrary) {
+        const cols = getCollectionsForLibrary(selectedLibrary);
+        const matching = cols.find((c) => c.name?.includes(year));
+        if (matching) {
+          console.log(`[VideoProcessingForm] Auto-selecting collection '${matching.name}' for year ${year}`);
+          onCollectionChange(matching.id || matching.guid);
+        }
+      }
+    },
+    [toast, onYearChange, selectedLibrary, getCollectionsForLibrary, onCollectionChange]
+  );
+
   // Toggle global pause state
   const handleGlobalPauseToggle = useCallback(() => {
     const newState = !isGloballyPaused;
@@ -270,10 +334,56 @@ const VideoProcessingForm = ({
     }
   };
 
+  // Export video views statistics
+  const handleExportViews = async (year?: number, month?: number) => {
+    setIsExportingViews(true);
+    try {
+      let data;
+      if (year && month) {
+        // Get specific month data
+        data = await bunnyService.getMonthlyViews(year, month);
+      } else {
+        // Get all months data (last 12 months)
+        data = await bunnyService.getViewsStats();
+      }
+      
+      setViewsReportData(data);
+      setShowViewsReport(true);
+    } catch (error) {
+      toast({
+        title: "❌ Views Export Failed",
+        description: error instanceof Error ? error.message : "Failed to get views statistics.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExportingViews(false);
+    }
+  };
+
   // Modify the onClose function to prevent immediate re-opening
   const handleReportClose = () => {
     reportShownRef.current = true; // Mark that we've explicitly closed this report
     setShowUploadReport(false);
+  };
+
+  // Sheet configuration handlers
+  const handleSheetConfigChange = (configId: string) => {
+    setSelectedSheetId(configId);
+    const config = sheetConfigManager.getConfigById(configId);
+    if (config && uploadManagerRef.current) {
+      // تحديث إعدادات الشيت في UploadManager
+      uploadManagerRef.current.updateSheetConfig(config);
+      console.log(`[VideoProcessingForm] Changed sheet config to: ${config.name}`);
+      toast({
+        title: "📊 تم تغيير الشيت",
+        description: `تم اختيار "${config.name}" كشيت افتراضي للتحديثات`,
+        variant: "default"
+      });
+    }
+  };
+
+  const handleSheetConfigsUpdate = (updatedConfigs: SheetConfig[]) => {
+    setSheetConfigs(updatedConfigs);
   };
 
   return (
@@ -308,6 +418,10 @@ const VideoProcessingForm = ({
         onFetchLibraryData={fetchLibraryData}
         uploadSettings={uploadSettings}
         onSettingsChange={handleSettingsChange}
+        selectedYear={selectedYear}
+        onYearChange={handleYearChange}
+        isExportingViews={isExportingViews}
+        onExportViews={handleExportViews}
       />
 
       {/* Automatic Upload Section - Fix props */}
@@ -355,6 +469,22 @@ const VideoProcessingForm = ({
           onFileSelect={handleManualUploadSelect}
           onStartUpload={startManualUpload}
           onRemoveFile={removeSelectedFile}
+        />
+      </div>
+
+      {/* Sheet Configuration Section */}
+      <div className="hover-lift glass-effect p-4 rounded-lg">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium flex items-center gap-2">
+            <span>إعدادات تحديث الشيت</span>
+          </h3>
+        </div>
+        
+        <SheetConfigSelector
+          configs={sheetConfigs}
+          selectedId={selectedSheetId}
+          onSelectionChange={handleSheetConfigChange}
+          onConfigsUpdate={handleSheetConfigsUpdate}
         />
       </div>
 
@@ -462,6 +592,14 @@ const VideoProcessingForm = ({
           </Button>
         )}
       </div>
+
+      {/* Views Report Dialog */}
+      <ViewsReport
+        open={showViewsReport}
+        onClose={() => setShowViewsReport(false)}
+        data={viewsReportData}
+        isLoading={isExportingViews}
+      />
     </Card>
   );
 };

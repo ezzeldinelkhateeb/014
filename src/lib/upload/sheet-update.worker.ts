@@ -83,7 +83,7 @@ const workerBlob = new Blob([`
 
       self.addEventListener('message', async (e) => {
         if (e.data.type === 'updateSheet') {
-          const { videoName, videoGuid, libraryId, origin } = e.data;
+          const { videoName, videoGuid, libraryId, origin, sheetConfig } = e.data;
 
           try {
             // First post a status update that we're processing
@@ -104,6 +104,33 @@ const workerBlob = new Blob([`
             const nameToSend = videoName.replace(/\\.mp4$/i, ''); 
             console.log(\`[Worker] Sending name to API: "\${nameToSend}" (Original: "\${videoName}")\`);
 
+            // Prepare request body with custom sheet config if available
+            const requestBody = {
+              videos: [{
+                name: nameToSend, // Use the name without extension
+                embed_code: embedCode
+              }]
+            };
+
+            // Add custom sheet configuration if provided
+            if (sheetConfig) {
+              requestBody.spreadsheetId = sheetConfig.spreadsheetId;
+              requestBody.sheetName = sheetConfig.sheetName;
+              requestBody.nameColumn = sheetConfig.videoNameColumn;
+              requestBody.embedColumn = sheetConfig.embedCodeColumn;
+              requestBody.finalMinutesColumn = sheetConfig.finalMinutesColumn;
+              console.log(\`[Worker] Using custom sheet config: "\${sheetConfig.name}"\`);
+              console.log(\`[Worker] Sheet ID: \${sheetConfig.spreadsheetId}, Name: \${sheetConfig.sheetName}\`);
+              console.log(\`[Worker] Columns - Names: \${sheetConfig.videoNameColumn}, Embed: \${sheetConfig.embedCodeColumn}, Minutes: \${sheetConfig.finalMinutesColumn}\`);
+              console.log(\`[Worker] Full request body:\`, JSON.stringify(requestBody, null, 2));
+            } else {
+              console.log(\`[Worker] No custom sheet config provided, using environment defaults\`);
+              console.log(\`[Worker] Request body (env defaults):\`, JSON.stringify(requestBody, null, 2));
+            }
+
+            console.log(\`[Worker] Sending request to: \${origin}/api/sheets/update-bunny-embeds\`);
+            const requestStartTime = Date.now();
+
             // data should now have a consistent structure from validateResponse
             const data = await fetchWithRetry(
               \`\${origin}/api/sheets/update-bunny-embeds\`,
@@ -112,14 +139,14 @@ const workerBlob = new Blob([`
                 headers: {
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                  videos: [{
-                    name: nameToSend, // Use the name without extension
-                    embed_code: embedCode
-                  }]
-                })
+                body: JSON.stringify(requestBody)
               }
-            );            // Safely access properties, using defaults from validateResponse
+            );
+            
+            const requestTime = Date.now() - requestStartTime;
+            console.log(\`[Worker] Request completed in \${requestTime}ms\`);
+            
+            // Safely access properties, using defaults from validateResponse
             // Ensure results[0] exists before accessing its properties
             const firstResult = data.results && data.results.length > 0 ? data.results[0] : {};
             const status = firstResult?.status || (data.success ? 'updated' : 'error');

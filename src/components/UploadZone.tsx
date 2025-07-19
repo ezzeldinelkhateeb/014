@@ -10,6 +10,32 @@ interface UploadZoneProps {
   isUploading: boolean;
 }
 
+// Recursively extract File objects from DataTransferItemList (supports nested folders)
+const getFilesFromItems = async (items: DataTransferItemList): Promise<File[]> => {
+  const traverse = (entry: any): Promise<File[]> =>
+    new Promise((resolve) => {
+      if (!entry) return resolve([]);
+
+      if (entry.isFile) {
+        entry.file((file: File) => resolve([file]));
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        reader.readEntries(async (entries: any[]) => {
+          const nested = (await Promise.all(entries.map((ent) => traverse(ent)))).flat();
+          resolve(nested);
+        });
+      } else {
+        resolve([]);
+      }
+    });
+
+  const promises = Array.from(items)
+    .filter((item) => item.kind === 'file' && (item as any).webkitGetAsEntry)
+    .map((item) => traverse((item as any).webkitGetAsEntry()));
+
+  return (await Promise.all(promises)).flat();
+};
+
 const UploadZone: React.FC<UploadZoneProps> = ({
   onFileSelect,
   disabled,
@@ -74,17 +100,44 @@ const UploadZone: React.FC<UploadZoneProps> = ({
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     setDragCounter(0);
     setIsDragOver(false);
     setHasVideoFiles(false);
-    
-    if (!disabled && e.dataTransfer.files) {
-      checkForVideoFiles(e.dataTransfer.files);
-      onFileSelect(e.dataTransfer.files);
+
+    if (disabled) return;
+
+    let collected: File[] = [];
+
+    // Try extracting via entries (supports folders)
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      collected = await getFilesFromItems(e.dataTransfer.items);
+      console.log('[UploadZone] Extracted files from dropped items:', collected);
+      if (collected.length === 0) {
+        // Check if any item is a directory (for debugging)
+        const hasDir = Array.from(e.dataTransfer.items).some(item => {
+          const entry = (item as any).webkitGetAsEntry?.();
+          return entry && entry.isDirectory;
+        });
+        if (hasDir) {
+          console.warn('[UploadZone] Directory detected in drop, but no files extracted. webkitGetAsEntry may not be supported in this browser or context.');
+        }
+      }
+    }
+
+    // Fallback to plain files array
+    if (collected.length === 0 && e.dataTransfer.files) {
+      collected = Array.from(e.dataTransfer.files);
+    }
+
+    if (collected.length > 0) {
+      const dt = new DataTransfer();
+      collected.forEach((file) => dt.items.add(file));
+      checkForVideoFiles(dt.files);
+      onFileSelect(dt.files);
     }
   }, [disabled, onFileSelect, checkForVideoFiles]);
 

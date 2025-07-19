@@ -3,6 +3,7 @@ import { Card } from "./ui/card";
 import VideoProcessingForm from "./VideoProcessingForm";
 import { bunnyService } from "../lib/bunny-service";
 import { Year } from "../types/common";
+import BunnyDiagnostics from "../lib/bunny/diagnostics";
 // Use the types expected by VideoProcessingForm props
 import { LibraryInterface, CollectionInterface } from './video-processing/types'; 
 
@@ -33,12 +34,18 @@ const Home = () => {
   const [collections, setCollections] = React.useState<CollectionInterface[]>([]);
   const [selectedLibrary, setSelectedLibrary] = React.useState("");
   const [selectedCollection, setSelectedCollection] = React.useState("");
-  const [selectedYear, setSelectedYear] = React.useState<Year>("2025");
+  const [selectedYear, setSelectedYear] = React.useState<Year>("2026");
 
   // Initialize bunny service and fetch libraries on mount
   React.useEffect(() => {
     const initializeAndFetchLibraries = async () => {
       try {
+        // Run diagnostics in development
+        if (import.meta.env.DEV) {
+          console.log('🔍 Running Bunny.net diagnostics...');
+          await BunnyDiagnostics.runAllTests();
+        }
+        
         await bunnyService.initialize();
         const libs = await bunnyService.getLibraries(); // Assuming this returns FetchedLibrary compatible type
         // Transform fetched data to match the required LibraryInterface for the form
@@ -82,7 +89,7 @@ const Home = () => {
         }));
         setLibraries(transformedLibs);
       } catch (error) {
-        console.error("Error fetching libraries:", error);
+        console.error("❌ Error fetching libraries:", error);
       }
     };
     initializeAndFetchLibraries();

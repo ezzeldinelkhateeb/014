@@ -18,6 +18,11 @@ app.options('*', (req, res) => {
 // Add routes
 app.use('/api/proxy', proxyRoutes);
 
+// Simple health check endpoint for diagnostics
+app.get('/api/auth-check', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

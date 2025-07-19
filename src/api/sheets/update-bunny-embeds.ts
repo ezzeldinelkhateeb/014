@@ -180,19 +180,11 @@ const findMatchingRow = (videoName: string, rows: any[][], nameColumnIndex: numb
   }
   
   // Try normalized match
-  const rowIndex = rows.findIndex((row, idx) => {
-    if (!row || typeof row[nameColumnIndex] === 'undefined' || row[nameColumnIndex] === null || row[nameColumnIndex] === '') {
-      return false;
-    }
-
-    const sheetName = row[nameColumnIndex].toString();
-    const match = namesMatch(videoName, sheetName);
-
-    if (match) {
-      console.log(`[findMatchingRow] ✅ MATCH FOUND at row ${idx + 1}: "${sheetName}"`);
-    }
-
-    return match;
+  const rowIndex = rows.findIndex((row) => {
+    if (!row) return false;
+    const cellValue = row.length > nameColumnIndex ? row[nameColumnIndex] : row[0];
+    if (!cellValue) return false;
+    return namesMatch(videoName, cellValue.toString());
   });
 
   console.log('[findMatchingRow] Match result:', rowIndex !== -1 ?

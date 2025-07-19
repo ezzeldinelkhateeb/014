@@ -41,6 +41,8 @@ export class HttpClient {
     return response;
   }
 
+  // Delete functionality removed for security
+  /*
   async delete(url: string, options: RequestInit = {}): Promise<Response> {
     const response = await fetch(`${this.baseUrl}${url}`, {
       ...options,
@@ -57,4 +59,5 @@ export class HttpClient {
 
     return response;
   }
+  */
 } 

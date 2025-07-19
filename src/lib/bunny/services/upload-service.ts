@@ -181,6 +181,8 @@ export class UploadService {
     let resolvedCollectionId = collectionId;
     if (collectionId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collectionId)) {
       try {
+        console.log(`[UploadService] Resolving collection name "${collectionId}" to GUID`);
+        
         // Get collections for the library
         const collections = await this.httpClient.fetchWithError<{ items: Collection[] }>(
           `/api/proxy/video/library/${libraryId}/collections`,
@@ -206,26 +208,70 @@ export class UploadService {
           resolvedCollectionId = existingCollection.guid;
           console.log(`[UploadService] Found existing collection "${collectionId}" with GUID: ${resolvedCollectionId}`);
         } else {
-          // Create new collection
+          // Create new collection with better error handling
           console.log(`[UploadService] Creating new collection "${collectionId}"`);
-          const newCollection = await this.httpClient.fetchWithError<Collection>(
-            `/api/proxy/video/library/${libraryId}/collections`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'AccessKey': apiKey
-              },
-              body: JSON.stringify({ name: collectionId })
+          
+          try {
+            const newCollection = await this.httpClient.fetchWithError<Collection>(
+              `/api/proxy/video/library/${libraryId}/collections`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'AccessKey': apiKey
+                },
+                body: JSON.stringify({ name: collectionId })
+              }
+            );
+
+            if (!newCollection?.guid) {
+              throw new Error('Invalid new collection response - no GUID received');
             }
-          );
 
-          if (!newCollection?.guid) {
-            throw new Error('Invalid new collection response');
+            resolvedCollectionId = newCollection.guid;
+            console.log(`[UploadService] Successfully created collection "${collectionId}" with GUID: ${resolvedCollectionId}`);
+            
+          } catch (collectionError) {
+            console.error(`[UploadService] Failed to create collection "${collectionId}":`, collectionError);
+            
+            // Check if it's a specific API error
+            if (collectionError.message?.includes('already exists')) {
+              console.log(`[UploadService] Collection "${collectionId}" already exists, fetching updated list`);
+              
+              // Retry getting collections in case it was created by another process
+              try {
+                const retryCollections = await this.httpClient.fetchWithError<{ items: Collection[] }>(
+                  `/api/proxy/video/library/${libraryId}/collections`,
+                  {
+                    method: 'GET',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'AccessKey': apiKey
+                    }
+                  }
+                );
+                
+                const existingRetry = retryCollections.items?.find(c =>
+                  c.name.toLowerCase() === collectionId.toLowerCase()
+                );
+                
+                if (existingRetry) {
+                  resolvedCollectionId = existingRetry.guid;
+                  console.log(`[UploadService] Found collection on retry: ${resolvedCollectionId}`);
+                } else {
+                  console.warn(`[UploadService] Collection creation failed and not found on retry, proceeding without collection`);
+                  resolvedCollectionId = undefined;
+                }
+              } catch (retryError) {
+                console.warn(`[UploadService] Retry collection fetch failed:`, retryError);
+                resolvedCollectionId = undefined;
+              }
+            } else {
+              // For other errors, log and continue without collection
+              console.warn(`[UploadService] Collection creation failed with non-recoverable error, proceeding without collection:`, collectionError.message);
+              resolvedCollectionId = undefined;
+            }
           }
-
-          resolvedCollectionId = newCollection.guid;
-          console.log(`[UploadService] Created new collection "${collectionId}" with GUID: ${resolvedCollectionId}`);
         }
       } catch (error) {
         console.error(`[UploadService] Error resolving collection "${collectionId}":`, error);

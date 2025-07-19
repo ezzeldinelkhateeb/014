@@ -20,8 +20,9 @@ const setupCors = () => {
         callback(new Error('Not allowed by CORS'));
       }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
+    // Include custom Bunny header so browser can forward it without preflight errors
+    allowedHeaders: ['Content-Type', 'Authorization', 'AccessKey', 'accesskey'],
     credentials: true
   };
 

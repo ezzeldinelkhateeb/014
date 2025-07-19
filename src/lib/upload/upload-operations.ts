@@ -78,11 +78,21 @@ export class UploadOperations {
         apiKey: item.metadata.apiKey || 'default_key'
       };
 
+      // Use collection from metadata, or fallback to suggestedCollection
+      const collectionName = item.metadata.collection && item.metadata.collection.trim() !== ''
+        ? item.metadata.collection
+        : (item.metadata.suggestedCollection || '');
+
       const collection: Collection = {
-        id: item.metadata.collection,
-        name: item.metadata.collection,
+        id: collectionName,
+        name: collectionName,
         libraryId: item.metadata.library
       };
+
+      // Ensure we propagate the resolved collection back to metadata for consistency
+      if (!item.metadata.collection && collectionName) {
+        item.metadata.collection = collectionName;
+      }
 
       console.log(`[UploadOperations] Starting upload for ${item.filename}`);
 
@@ -137,7 +147,7 @@ export class UploadOperations {
           
           onProgressUpdate();
         },
-        collection.id,
+        collection.id || undefined,
         undefined, // accessToken
         item.controller?.signal
       );

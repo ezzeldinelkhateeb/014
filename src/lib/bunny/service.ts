@@ -4,6 +4,7 @@ import { LibraryService } from './services/library-service';
 import { CollectionService } from './services/collections-service';
 import { VideoService } from './services/video-service';
 import { BandwidthService } from './services/bandwidth-service';
+import { ViewsService } from './services/views-service';
 import { UploadService } from './services/upload-service'; // Corrected path for UploadService
 import { dataStorage } from '../data-storage';
 import { cache } from '../cache';
@@ -22,14 +23,15 @@ declare global {
 }
 
 export class BunnyService {
-  private baseUrl = "https://api.bunny.net";
-  private videoBaseUrl = "https://video.bunnycdn.com";
+  private baseUrl = "http://localhost:800";  // Use local proxy instead of direct API
+  private videoBaseUrl = "http://localhost:800";  // Use local proxy instead of direct API
   private httpClient: HttpClient;
 
   private libraryService: LibraryService;
   private collectionService: CollectionService;
   private videoService: VideoService;
   private bandwidthService: BandwidthService;
+  private viewsService: ViewsService;
   private uploadService: UploadService;
 
   private publicApiKey: string;
@@ -56,6 +58,7 @@ export class BunnyService {
     this.collectionService = new CollectionService(this.httpClient, this.videoBaseUrl);
     this.videoService = new VideoService(this.httpClient, this.videoBaseUrl);
     this.bandwidthService = new BandwidthService(this.httpClient);
+    this.viewsService = new ViewsService(this.httpClient);
     this.uploadService = new UploadService(this.httpClient, this.videoBaseUrl);
 
     this.mainApiKey = this.publicApiKey;
@@ -131,7 +134,9 @@ export class BunnyService {
   getCollections = (libraryId: string): Promise<Collection[]> => this.collectionService.getCollections(libraryId);
   // Update createCollection to accept accessToken
   createCollection = (libraryId: string, name: string, accessToken?: string): Promise<Collection> =>
-    this.collectionService.createCollection(libraryId, name, accessToken);  getVideos = (libraryId: string, collectionId?: string, accessToken?: string): Promise<Video[]> =>
+    this.collectionService.createCollection(libraryId, name, accessToken);
+  
+  getVideos = (libraryId: string, collectionId?: string, accessToken?: string): Promise<Video[]> =>
     this.videoService.getVideos(libraryId, collectionId, accessToken);
   getVideoEmbedCode = (libraryId: string, videoGuid: string): string =>
     this.videoService.getEmbedCode(libraryId, videoGuid);
@@ -156,7 +161,13 @@ export class BunnyService {
     collectionId?: string, // This should be the GUID
     accessToken?: string,
     signal?: AbortSignal
-  ): Promise<{ guid: string; title: string }> => this.uploadService.uploadVideoWithStreams(file, libraryId, onProgress, collectionId, accessToken, signal);  getBandwidthStats = () => this.bandwidthService.getBandwidthStats();
+  ): Promise<{ guid: string; title: string }> => this.uploadService.uploadVideoWithStreams(file, libraryId, onProgress, collectionId, accessToken, signal);
+  
+  getBandwidthStats = () => this.bandwidthService.getBandwidthStats();
+  
+  // Views statistics methods
+  getViewsStats = () => this.viewsService.getAllLibrariesViewsStats();
+  getMonthlyViews = (year: number, month: number) => this.viewsService.getMonthlyViewsForAllLibraries(year, month);
   
   // Video download URL generation
   generateDownloadUrl = (libraryId: string, videoGuid: string, quality?: string): string =>

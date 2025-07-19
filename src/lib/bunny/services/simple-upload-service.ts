@@ -66,16 +66,89 @@ export class SimpleUploadService {
   ): Promise<{ guid: string; title: string }> {
     const sanitizedTitle = this.sanitizeTitle(originalTitle);
     
+    let resolvedCollectionId = collectionId;
+    
+    // Resolve collection name to GUID if needed
+    if (collectionId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collectionId)) {
+      console.log(`[SimpleUploadService] Need to resolve collection name "${collectionId}" to GUID`);
+      
+      try {
+        // Get collections for the library
+        const collections = await this.httpClient.fetchWithError<{ items: any[] }>(
+          `/api/proxy/video/library/${libraryId}/collections`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'AccessKey': apiKey
+            }
+          }
+        );
+
+        if (collections?.items) {
+          // Try to find existing collection
+          const existingCollection = collections.items.find(c =>
+            c.name?.toLowerCase() === collectionId.toLowerCase()
+          );
+
+          if (existingCollection) {
+            resolvedCollectionId = existingCollection.guid;
+            console.log(`[SimpleUploadService] Found existing collection "${collectionId}" with GUID: ${resolvedCollectionId}`);
+          } else {
+            // Create new collection
+            console.log(`[SimpleUploadService] Creating new collection "${collectionId}"`);
+            
+            try {
+              const newCollection = await this.httpClient.fetchWithError<any>(
+                `/api/proxy/video/library/${libraryId}/collections`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'AccessKey': apiKey
+                  },
+                  body: JSON.stringify({ name: collectionId })
+                }
+              );
+
+              if (newCollection?.guid) {
+                resolvedCollectionId = newCollection.guid;
+                console.log(`[SimpleUploadService] Successfully created collection "${collectionId}" with GUID: ${resolvedCollectionId}`);
+              } else {
+                console.warn(`[SimpleUploadService] Collection creation failed, proceeding without collection`);
+                resolvedCollectionId = undefined;
+              }
+            } catch (createError) {
+              console.warn(`[SimpleUploadService] Failed to create collection "${collectionId}": ${createError.message}, proceeding without collection`);
+              resolvedCollectionId = undefined;
+            }
+          }
+        } else {
+          console.warn(`[SimpleUploadService] Invalid collections response, proceeding without collection`);
+          resolvedCollectionId = undefined;
+        }
+      } catch (error) {
+        console.warn(`[SimpleUploadService] Error resolving collection "${collectionId}": ${error.message}, proceeding without collection`);
+        resolvedCollectionId = undefined;
+      }
+    }
+    
     const createData: any = {
       title: sanitizedTitle
     };
 
     // Only add collection if it's a valid GUID format
-    if (collectionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(collectionId)) {
-      createData.collectionId = collectionId;
+    if (resolvedCollectionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedCollectionId)) {
+      createData.collectionId = resolvedCollectionId;
+      console.log(`[SimpleUploadService] Assigning video to collection: ${resolvedCollectionId}`);
     }
 
-    console.log(`[SimpleUploadService] Creating video entry:`, { title: sanitizedTitle, libraryId, hasCollection: !!collectionId });
+    console.log(`[SimpleUploadService] Creating video entry:`, { 
+      title: sanitizedTitle, 
+      libraryId, 
+      hasCollection: !!createData.collectionId,
+      collectionId: createData.collectionId 
+    });
 
     try {
       // Try proxy endpoint first
@@ -96,12 +169,14 @@ export class SimpleUploadService {
         throw new Error('Failed to create video entry: No GUID in response');
       }
 
+      console.log(`[SimpleUploadService] Video created successfully via proxy: ${response.guid}`);
       return { guid: response.guid, title: sanitizedTitle };
     } catch (error) {
-      console.error('[SimpleUploadService] Error creating video entry:', error);
+      console.error('[SimpleUploadService] Error creating video entry via proxy:', error);
       
       // Fallback to direct API
       try {
+        console.log('[SimpleUploadService] Attempting direct API fallback');
         const directResponse = await this.httpClient.fetchWithError<any>(
           `/library/${libraryId}/videos`,
           {
@@ -118,6 +193,7 @@ export class SimpleUploadService {
           throw new Error('Failed to create video entry via direct API');
         }
 
+        console.log(`[SimpleUploadService] Video created successfully via direct API: ${directResponse.guid}`);
         return { guid: directResponse.guid, title: sanitizedTitle };
       } catch (directError) {
         console.error('[SimpleUploadService] Direct API also failed:', directError);

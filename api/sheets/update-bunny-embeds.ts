@@ -171,16 +171,24 @@ const namesMatch = (nameA: string, nameB: string): boolean => {
     }
   }
 
-  // FINAL FALLBACK: Teacher code and course code matching with additional validation
+  // FINAL FALLBACKS
+
+  // 1️⃣ الجزئى (inclusion) إذا كان أحد الإسمين يحتوى الآخر بطول معتبر ≥ 10 حروف.
+  if ((normA.includes(normB) || normB.includes(normA)) && Math.min(normA.length, normB.length) >= 10) {
+    console.log('[namesMatch] ✅ Partial inclusion match.');
+    return true;
+  }
+
+  // 2️⃣ تطابق كود المادة / الفصل كما كان:
   const courseCodePattern = /(m\d+|s\d+|j\d+)-(t\d+)?-(u\d+)?-(l\d+)?-(sci|ar|en|math)-\w+-(p\d+)/i;
-  
+
   const courseCodeA = normA.match(courseCodePattern);
   const courseCodeB = normB.match(courseCodePattern);
-  
+
   if (courseCodeA && courseCodeB) {
     const matchedPartsA = courseCodeA[0].toLowerCase();
     const matchedPartsB = courseCodeB[0].toLowerCase();
-    
+
     // Only match if course codes are exactly the same
     if (matchedPartsA === matchedPartsB) {
       console.log('[namesMatch] ✅ Exact course code match.');
@@ -218,12 +226,14 @@ const findMatchingRow = (videoName: string, rows: any[][], nameColumnIndex: numb
   
   // Try normalized match
   const rowIndex = rows.findIndex((row, idx) => {
-    // Ensure row and the specific cell exist and are not empty
-    if (!row || typeof row[nameColumnIndex] === 'undefined' || row[nameColumnIndex] === null || row[nameColumnIndex] === '') {
-      return false;
-    }
+    if (!row) return false;
 
-    const sheetName = row[nameColumnIndex].toString();
+    // Google Sheets API لا تُرجع خلايا فارغة فى بداية الصف.
+    // إذا كان الاسم فى العمود N بينما A-M فارغة، سيكون cell[0] هو الاسم وليس cell[13].
+    const cellValue = row.length > nameColumnIndex ? row[nameColumnIndex] : row[0];
+    if (!cellValue) return false;
+
+    const sheetName = cellValue.toString();
     const match = namesMatch(videoName, sheetName);
 
     if (match) {
@@ -283,12 +293,35 @@ export default async function handler(
       });
     }
 
-    // Convert column letters to zero-based indices
-    const nameColIndex = nameColumn.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-    const embedColIndex = embedColumn.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-    const finalMinutesColIndex = finalMinutesColumn.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+    // Helper to convert column letter(s) → zero-based index
+    const columnLetterToIndex = (col: string): number => {
+      let index = 0;
+      const upper = col.toUpperCase();
+      for (let i = 0; i < upper.length; i++) {
+        const charCode = upper.charCodeAt(i) - 64; // A=1, B=2 …
+        index = index * 26 + charCode;
+      }
+      return index - 1; // zero-based
+    };
+
+    // Helper to convert zero-based index → column letter(s)
+    const indexToColumnLetter = (idx: number): string => {
+      let n = idx + 1; // change to 1-based
+      let letters = '';
+      while (n > 0) {
+        const remainder = (n - 1) % 26;
+        letters = String.fromCharCode(65 + remainder) + letters;
+        n = Math.floor((n - 1) / 26);
+      }
+      return letters;
+    };
+
+    // Convert column letters to indices using new helper
+    const nameColIndex = columnLetterToIndex(nameColumn);
+    const embedColIndex = columnLetterToIndex(embedColumn);
+    const finalMinutesColIndex = columnLetterToIndex(finalMinutesColumn);
     const maxColIndex = Math.max(nameColIndex, embedColIndex, finalMinutesColIndex);
-    const endColumnLetter = String.fromCharCode('A'.charCodeAt(0) + maxColIndex);
+    const endColumnLetter = indexToColumnLetter(maxColIndex);
     const range = `${sheetName}!A:${endColumnLetter}`; // Fetch enough columns
 
     const { credentials } = envConfig.googleSheets;
@@ -304,17 +337,44 @@ export default async function handler(
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
+    // Resolve sheet name dynamically in case هناك رموز أو مسافات مخفية فى التبويب
+    let resolvedSheetName = sheetName;
+    try {
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      const allSheets = meta.data.sheets || [];
+
+      // Print all sheet/tab names for debugging
+      const tabNames = allSheets.map(s => s.properties?.title);
+      console.log('[Handler] 🔖 Sheet tabs found:', tabNames);
+
+      const normalize = (str: string) => str.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').trim().toLowerCase();
+
+      // 1️⃣ تطابق دقيق بعد التطبيع
+      const exact = allSheets.find(s => normalize(s.properties?.title || '') === normalize(sheetName));
+      // 2️⃣ تطابق بالاحتواء بعد التطبيع (إذا لم يوجد تطابق دقيق)
+      const partial = exact ? undefined : allSheets.find(s => normalize(s.properties?.title || '').includes(normalize(sheetName)));
+
+      const chosen = exact || partial;
+      if (chosen) {
+        resolvedSheetName = chosen.properties?.title || sheetName;
+        console.log(`[Handler] Using resolved sheet tab: "${resolvedSheetName}"`);
+      } else {
+        console.warn(`[Handler] Could not resolve sheet tab for "${sheetName}", defaulting to provided name.`);
+      }
+    } catch (metaErr) {
+      console.warn('[Handler] Failed to fetch sheet metadata:', metaErr);
+    }
 
     // Get existing data
-    console.log(`[Handler] Fetching sheet data from range: ${range}`);
+    console.log(`[Handler] Fetching sheet data from range: ${resolvedSheetName}!A:${endColumnLetter}`);
     const sheetResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: range, // Use calculated range
+      range: `${resolvedSheetName}!A:${endColumnLetter}`,
       valueRenderOption: 'UNFORMATTED_VALUE' // Keep as is
     });
 
     const rows = sheetResponse.data.values || [];
-    console.log(`[Handler] Fetched ${rows.length} rows.`);
+    console.log(`[Handler] Fetched ${rows.length} rows from "${resolvedSheetName}".`);
     
     // Debug: Log a sample of sheet data
     console.log('[Handler] Sheet data sample:', 
@@ -368,7 +428,7 @@ export default async function handler(
 
       if (rowIndex === -1) {
         currentStatus = 'notFound';
-        details = 'Video name not found in sheet';
+        details = `Video name not found in sheet "${sheetName}" with ${rows.length} entries`;
         stats.notFound++;
         console.log(`❌ [NOT FOUND] "${video.name}" - No matching row found in sheet`);
       } else if (existingEmbed && existingEmbed.trim().length > 0) {
@@ -385,7 +445,7 @@ export default async function handler(
         // Add embed code update
         if (video.embed_code) {
           updates.push({
-            range: `${sheetName}!${embedColumn}${rowNumber}`, // Use original letter for range
+            range: `${resolvedSheetName}!${embedColumn}${rowNumber}`, // Use original letter for range
             values: [[video.embed_code]]
           });
           console.log(`✅ [WILL UPDATE] "${video.name}" - Row ${rowNumber}, Column ${embedColumn}`);
@@ -394,7 +454,7 @@ export default async function handler(
         // Add final minutes update if provided
         if (video.final_minutes !== undefined) {
           updates.push({
-            range: `${sheetName}!${finalMinutesColumn}${rowNumber}`, // Use final minutes column
+            range: `${resolvedSheetName}!${finalMinutesColumn}${rowNumber}`, // Use final minutes column
             values: [[video.final_minutes]]
           });
           console.log(`⏰ [WILL UPDATE FINAL MINUTES] "${video.name}" - Row ${rowNumber}, Column ${finalMinutesColumn}, Value: ${video.final_minutes}`);

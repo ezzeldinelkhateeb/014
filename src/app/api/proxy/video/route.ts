@@ -38,13 +38,28 @@ async function handleProxyRequest(request: NextRequest) {
       headers.set('Content-Type', contentType);
     }
 
+    // Prepare request body similarly to ensure proper forwarding (see dynamic route for rationale)
+    let forwardBody: BodyInit | undefined = undefined;
+    if (method !== 'GET') {
+      const cType = request.headers.get('Content-Type') || '';
+      if (cType.startsWith('application/json')) {
+        forwardBody = await request.text();
+      } else if (cType.startsWith('application/x-www-form-urlencoded')) {
+        forwardBody = await request.text();
+      } else if (cType.startsWith('multipart/form-data')) {
+        forwardBody = request.body;
+      } else {
+        forwardBody = await request.arrayBuffer();
+      }
+    }
+
     // Direct connection to Bunny.net
     let response;
     try {
       response = await fetch(targetUrl, {
         method: method,
         headers: headers,
-        body: method !== 'GET' ? request.body : undefined,
+        body: forwardBody,
         // Add a longer timeout for large uploads
         signal: AbortSignal.timeout(300000), // 5 minute timeout
       });

@@ -59,22 +59,22 @@ const mockCollectionsResponse = {
     {
       "id": "c1",
       "guid": "c1",
-      "name": "T2-2025",
+      "name": "T2-2026",
       "videoCount": 15,
       "totalSize": 750000000,
       "previewVideoIds": null,
       "previewImageUrls": [],
-      "dateCreated": "2023-06-15T09:25:30Z"
+      "dateCreated": "2025-06-15T09:25:30Z"
     },
     {
       "id": "c2",
       "guid": "c2",
-      "name": "T1-2024",
+      "name": "T1-2026",
       "videoCount": 8,
       "totalSize": 420000000,
       "previewVideoIds": null,
       "previewImageUrls": [],
-      "dateCreated": "2023-04-10T11:45:15Z"
+      "dateCreated": "2025-04-10T11:45:15Z"
     }
   ],
   "TotalItems": 2

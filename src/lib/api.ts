@@ -7,18 +7,39 @@ interface SheetUpdateResult {
   details?: string;
 }
 
+interface SheetConfig {
+  spreadsheetId: string;
+  sheetName: string;
+  nameColumn: string;
+  embedColumn: string;
+  finalMinutesColumn: string;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 /**
- * Updates the Google Sheet with video information
+ * Updates the Google Sheet with video information using custom sheet configuration
  */
 export async function updateSheetForVideo(
   videoTitle: string, 
   videoGuid: string, 
-  libraryId: string
+  libraryId: string,
+  sheetConfig?: SheetConfig
 ): Promise<SheetUpdateResult> {
   try {
     const embedCode = `<div style="position:relative;padding-top:56.25%;"><iframe src="https://iframe.mediadelivery.net/embed/${libraryId}/${videoGuid}?autoplay=false&loop=false&muted=false&preload=true&responsive=true" loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%;" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen="true"></iframe></div>`;
+
+    const requestBody: any = {
+      videos: [{
+        name: videoTitle,
+        embed_code: embedCode
+      }]
+    };
+
+    // إضافة إعدادات الشيت المخصصة إذا توفرت
+    if (sheetConfig) {
+      requestBody.sheetConfig = sheetConfig;
+    }
 
     const response = await fetch(`${API_BASE_URL}/api/sheets/update-bunny-embeds`, {
       method: 'POST',
@@ -27,12 +48,7 @@ export async function updateSheetForVideo(
         'AccessKey': import.meta.env.VITE_BUNNY_API_KEY || '',
       },
       credentials: 'include',
-      body: JSON.stringify({
-        videos: [{
-          name: videoTitle,
-          embed_code: embedCode
-        }]
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {

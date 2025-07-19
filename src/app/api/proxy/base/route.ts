@@ -13,16 +13,14 @@ export async function PUT(request: NextRequest) {
   return handleProxyRequest(request);
 }
 
-export async function DELETE(request: NextRequest) {
-  return handleProxyRequest(request);
-}
+// DELETE functionality removed for security
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, AccessKey',
     },
   });

@@ -1,6 +1,6 @@
 export interface VideoMetadata {
   type: "RE" | "QV" | "FULL";
-  year: "2024" | "2025";
+  year: "2023" | "2024" | "2025" | "2026" | "2027" | "2028" | "2029" | "2030" | "2031" | "2032" | "2033";
   term?: string;
   branch?: string;
   teacherCode?: string;
@@ -17,7 +17,7 @@ export const VIDEO_RULES: VideoRule[] = [
   { pattern: /.*/, collection: "Full Videos Collection" },
 ];
 
-export const VALID_YEARS = ["2023", "2024", "2025"] as const;
+export const VALID_YEARS = ["2023", "2024", "2025", "2026", "2027", "2028", "2029", "2030", "2031", "2032", "2033"] as const;
 export type Year = typeof VALID_YEARS[number];
 
 export interface ProcessingStatus {

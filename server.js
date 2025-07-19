@@ -55,7 +55,7 @@ const corsOptions = {
     return callback(new Error(msg), false);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'AccessKey']
 };
 
@@ -64,12 +64,23 @@ app.use(express.json()); // Use express.json() before routes that need it
 
 // Proxy Middleware Setup
 const defaultBunnyApiKey = process.env.VITE_BUNNY_API_KEY; // Keep the default key
+console.log("🔑 Bunny API Key Status:", {
+  hasEnvKey: !!defaultBunnyApiKey,
+  keyLength: defaultBunnyApiKey ? defaultBunnyApiKey.length : 0,
+  keyPreview: defaultBunnyApiKey ? defaultBunnyApiKey.substring(0, 8) + '...' : 'Not set'
+});
+
 if (!defaultBunnyApiKey) {
-  console.warn("WARN: VITE_BUNNY_API_KEY is not set in the environment variables. Proxy might fail if no key is provided in requests.");
+  console.warn("⚠️ WARN: VITE_BUNNY_API_KEY is not set in the environment variables. Proxy might fail if no key is provided in requests.");
+  console.warn("⚠️ Please check your .env file and restart the server.");
 }
 
 // Import the custom middleware
 import { createBunnyVideoProxyMiddleware } from './src/server-middleware.js';
+import { createApiKeyValidationMiddleware } from './src/middleware/api-key-validation.js';
+
+// Apply API key validation middleware for Bunny.net routes
+app.use('/api/proxy', createApiKeyValidationMiddleware());
 
 // Apply our custom middleware before the proxy middleware
 app.use(createBunnyVideoProxyMiddleware({ defaultApiKey: defaultBunnyApiKey }));
@@ -229,6 +240,66 @@ app.post('/api/proxy/create-video', async (req, res) => {
   }
 });
 
+// === Collection Routes (explicit to avoid proxy 500) ===
+app.get('/api/proxy/video/library/:libraryId/collections', async (req, res) => {
+  try {
+    const { libraryId } = req.params;
+    const apiKey = req.headers['accesskey'] || req.headers['AccessKey'];
+
+    if (!libraryId) return res.status(400).json({ error: 'Missing libraryId' });
+    if (!apiKey) return res.status(401).json({ error: 'Missing AccessKey header' });
+
+    const response = await fetch(`https://video.bunnycdn.com/library/${libraryId}/collections`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'AccessKey': apiKey
+      }
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      console.error('[Collection GET] Bunny error', response.status, text);
+      return res.status(response.status).json({ error: 'Bunny API error', details: text });
+    }
+    return res.status(200).json(JSON.parse(text));
+  } catch (err) {
+    console.error('[Collection GET] Internal error', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+app.post('/api/proxy/video/library/:libraryId/collections', async (req, res) => {
+  try {
+    const { libraryId } = req.params;
+    const { name } = req.body || {};
+    const apiKey = req.headers['accesskey'] || req.headers['AccessKey'];
+
+    if (!libraryId || !name) return res.status(400).json({ error: 'Missing parameters' });
+    if (!apiKey) return res.status(401).json({ error: 'Missing AccessKey header' });
+
+    const response = await fetch(`https://video.bunnycdn.com/library/${libraryId}/collections`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'AccessKey': apiKey
+      },
+      body: JSON.stringify({ name })
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      console.error('[Collection POST] Bunny error', response.status, text);
+      return res.status(response.status).json({ error: 'Bunny API error', details: text });
+    }
+    return res.status(200).json(JSON.parse(text));
+  } catch (err) {
+    console.error('[Collection POST] Internal error', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
 // Apply proxy middleware with enhanced error handling
 app.use('/api/proxy/base', createProxyMiddleware({
   target: 'https://api.bunny.net',
@@ -366,18 +437,57 @@ app.post('/api/proxy/video/upload/:guid', upload.single('file'), async (req, res
 
 // Sheets update endpoint
 app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
+  const overallStartTime = Date.now();
   try {
-    const { videos } = req.body;
+    const { 
+      videos, 
+      spreadsheetId: customSpreadsheetId, 
+      sheetName: customSheetName, 
+      nameColumn = 'M', 
+      embedColumn = 'V', 
+      finalMinutesColumn = 'P' 
+    } = req.body;
     
     // Enhanced logging for debugging
+    console.log(`\n🔍 [Sheet Update] ================================`);
     console.log(`[Sheet Update] Received request with ${videos ? videos.length : 0} videos`);
+    console.log(`[Sheet Update] 🔧 RAW REQUEST BODY:`, JSON.stringify(req.body, null, 2));
+    
     if (videos && videos.length > 0) {
-      console.log(`[Sheet Update] First video example:`, {
-        name: videos[0].name,
-        hasEmbedCode: !!videos[0].embed_code,
-        embedCodeLength: videos[0].embed_code ? videos[0].embed_code.length : 0
+      console.log(`[Sheet Update] Videos to update:`);
+      videos.forEach((video, index) => {
+        console.log(`  ${index + 1}. "${video.name}" (embed: ${video.embed_code ? 'YES' : 'NO'})`);
       });
     }
+    
+    console.log(`[Sheet Update] 🔍 DESTRUCTURED VALUES:`);
+    console.log(`  customSpreadsheetId: ${customSpreadsheetId || 'undefined'}`);
+    console.log(`  customSheetName: ${customSheetName || 'undefined'}`);
+    console.log(`  nameColumn: ${nameColumn}`);
+    console.log(`  embedColumn: ${embedColumn}`);
+    console.log(`  finalMinutesColumn: ${finalMinutesColumn}`);
+    
+    // Use custom sheet config if provided, otherwise use environment defaults
+    const spreadsheetId = customSpreadsheetId || process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const sheetName = customSheetName || process.env.GOOGLE_SHEET_NAME || 'OPERATIONS';
+    
+    console.log(`\n📊 [Sheet Update] Configuration:`);
+    if (customSpreadsheetId) {
+      console.log(`  � Using CUSTOM sheet config:`);
+      console.log(`    - Spreadsheet ID: ${customSpreadsheetId}`);
+      console.log(`    - Sheet Name: ${sheetName}`);
+      console.log(`    - Name Column: ${nameColumn}`);
+      console.log(`    - Embed Column: ${embedColumn}`);
+      console.log(`    - Minutes Column: ${finalMinutesColumn}`);
+    } else {
+      console.log(`  📄 Using ENVIRONMENT defaults:`);
+      console.log(`    - Spreadsheet ID: ${spreadsheetId}`);
+      console.log(`    - Sheet Name: ${sheetName}`);
+      console.log(`    - Name Column: M (default)`);
+      console.log(`    - Embed Column: V (default)`);
+      console.log(`    - Minutes Column: P (default)`);
+    }
+    console.log(`[Sheet Update] ================================\n`);
 
     if (!Array.isArray(videos) || videos.length === 0) {
       return res.status(400).json({ 
@@ -406,7 +516,7 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
       return res.status(500).json({ success: false, message: 'Invalid Google Sheets credentials configuration' });
     }
 
-    if (!process.env.GOOGLE_SHEETS_SPREADSHEET_ID) {
+    if (!spreadsheetId) {
       return res.status(500).json({ success: false, message: 'Google Sheet Spreadsheet ID not configured.' });
     }
 
@@ -422,20 +532,114 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-    const sheetName = process.env.GOOGLE_SHEET_NAME || 'OPERATIONS';
 
-    // Get existing data
-    const rangeToRead = `${sheetName}!M:V`;
-    console.log(`Reading range: ${rangeToRead}`);
+    // Helper function to convert column letter to index (A=0, B=1, etc.)
+    function columnToIndex(column) {
+      let index = 0;
+      for (let i = 0; i < column.length; i++) {
+        index = index * 26 + (column.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+      }
+      return index - 1;
+    }
+
+    // Calculate column indices
+    const nameColumnIndex = columnToIndex(nameColumn);
+    const embedColumnIndex = columnToIndex(embedColumn);
+    const finalMinutesColumnIndex = columnToIndex(finalMinutesColumn);
+    
+    console.log(`[Sheet Update] Using columns: ${nameColumn} (index ${nameColumnIndex}), ${embedColumn} (index ${embedColumnIndex}), ${finalMinutesColumn} (index ${finalMinutesColumnIndex})`);
+
+    // Get existing data - expand range to ensure we capture all needed columns
+    // Calculate the rightmost column we need (between embed and final minutes columns)
+    const maxColumnIndex = Math.max(embedColumnIndex, finalMinutesColumnIndex);
+    
+    // Convert back to column letter - Fixed for multi-letter columns
+    function indexToColumn(index) {
+      let column = '';
+      while (index >= 0) {
+        column = String.fromCharCode((index % 26) + 'A'.charCodeAt(0)) + column;
+        index = Math.floor(index / 26) - 1;
+      }
+      return column;
+    }
+    
+    // Use the actual column with the highest index, not converted back
+    const allColumns = [nameColumn, embedColumn, finalMinutesColumn];
+    const allColumnIndices = [nameColumnIndex, embedColumnIndex, finalMinutesColumnIndex];
+    const maxIndex = Math.max(...allColumnIndices);
+    const endColumnFromOriginal = allColumns[allColumnIndices.indexOf(maxIndex)];
+    
+    // Always start range from column A so that the indices we calculated match Google Sheets API response
+    // If we start at nameColumn (e.g., N), the returned rows will be offset and indices 0..n will no longer correspond
+    // to original sheet indices, causing lookup failures. Fetching from A preserves absolute positions.
+    const rangeToRead = `${sheetName}!A:${endColumnFromOriginal}`;
+    
+    console.log(`[Sheet Update] 🔍 READING FROM CUSTOM SHEET:`);
+    console.log(`[Sheet Update] 📊 Spreadsheet ID: ${spreadsheetId}`);
+    console.log(`[Sheet Update] 📋 Sheet Name: ${sheetName}`);
+    console.log(`[Sheet Update] 📍 Range: ${rangeToRead}`);
+    console.log(`[Sheet Update] 🏷️ Columns - Names: ${nameColumn} (${nameColumnIndex}), Embed: ${embedColumn} (${embedColumnIndex}), Minutes: ${finalMinutesColumn} (${finalMinutesColumnIndex})`);
+    console.log(`[Sheet Update] 📐 Expanded range to column ${endColumnFromOriginal} (index ${maxIndex}) to include all required columns`);
+    
+    const startTime = Date.now();
+    console.log(`[Sheet Update] ⏰ Starting sheet read at ${new Date().toISOString()}`);
+    
     const sheetResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: rangeToRead,
     });
+    
+    const readTime = Date.now() - startTime;
+    console.log(`[Sheet Update] ⏱️ Sheet read completed in ${readTime}ms`);
 
     const rows = sheetResponse.data.values || [];
     const nameToRowIndex = new Map();
     const existingEmbeds = new Map();
+    
+    console.log(`[Sheet Update] 📊 SHEET DATA ANALYSIS:`);
+    console.log(`[Sheet Update] 📈 Total rows found: ${rows.length}`);
+    console.log(`[Sheet Update] 🔍 Using column indices - Names: ${nameColumnIndex}, Embed: ${embedColumnIndex}, Minutes: ${finalMinutesColumnIndex}`);
+    console.log(`[Sheet Update] 📐 Expected columns in data: name at index ${nameColumnIndex}, embed at index ${embedColumnIndex}`);
+    
+    // Debug: Show raw data from first few rows
+    if (rows.length > 0) {
+      console.log(`[Sheet Update] 🔍 RAW SHEET DATA (first 10 rows):`);
+      rows.slice(0, 10).forEach((row, index) => {
+        console.log(`[Sheet Update]   Row ${index + 1}: length=${row.length} [${row.map((cell, cellIndex) => `${cellIndex}:"${cell ? cell.toString().substring(0, 30) : 'EMPTY'}"`).join(', ')}]`);
+        if (row.length > nameColumnIndex && row[nameColumnIndex]) {
+          console.log(`[Sheet Update]     -> Name column (${nameColumnIndex}): "${row[nameColumnIndex]}"`);
+        } else {
+          console.log(`[Sheet Update]     -> Name column (${nameColumnIndex}): MISSING or EMPTY`);
+        }
+        if (row.length > embedColumnIndex && row[embedColumnIndex]) {
+          console.log(`[Sheet Update]     -> Embed column (${embedColumnIndex}): HAS DATA (${row[embedColumnIndex].toString().length} chars)`);
+        } else {
+          console.log(`[Sheet Update]     -> Embed column (${embedColumnIndex}): MISSING or EMPTY`);
+        }
+      });
+      
+      // Also try to understand if this might be offset by header rows
+      console.log(`[Sheet Update] 🔍 HEADER ANALYSIS:`);
+      if (rows.length > 0) {
+        const firstRow = rows[0];
+        console.log(`[Sheet Update] First row appears to be: ${firstRow.length > nameColumnIndex && firstRow[nameColumnIndex] ? '"' + firstRow[nameColumnIndex] + '"' : 'EMPTY'}`);
+        if (firstRow.length > nameColumnIndex && firstRow[nameColumnIndex]) {
+          const cellValue = firstRow[nameColumnIndex].toString().toLowerCase();
+          if (cellValue.includes('name') || cellValue.includes('video') || cellValue.includes('title')) {
+            console.log(`[Sheet Update] ⚠️ First row might be HEADER - contains keywords: ${cellValue}`);
+          }
+        }
+      }
+    }
+    
+    if (rows.length === 0) {
+      console.log(`[Sheet Update] ⚠️ WARNING: No data found in range ${rangeToRead}`);
+      console.log(`[Sheet Update] 🔧 Please verify:`);
+      console.log(`[Sheet Update]    - Sheet name "${sheetName}" exists`);
+      console.log(`[Sheet Update]    - Columns ${nameColumn}:${endColumnFromOriginal} contain data`);
+      console.log(`[Sheet Update]    - Sheet permissions allow reading`);
+      console.log(`[Sheet Update]    - Data starts from row 1 (or adjust range if headers exist)`);
+    }
 
     // Enhanced function to normalize text for better matching
     function normalizeText(text) {
@@ -499,10 +703,17 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
 
     // Create lookup maps with better normalization
     const originalNames = []; // Store original names for fuzzy matching
+    let processedRows = 0;
+    let validNameCount = 0;
+    
     rows.forEach((row, index) => {
-      if (row[0]) { // Name column (M)
-        const originalName = row[0].toString();
+      processedRows++;
+      
+      // Check if the row has enough columns and contains data in the name column
+      if (row.length > nameColumnIndex && row[nameColumnIndex]) { // Name column
+        const originalName = row[nameColumnIndex].toString();
         originalNames.push(originalName);
+        validNameCount++;
         
         // Normalize the name: remove extension, trim, and convert to lowercase
         const normalizedName = normalizeText(originalName);
@@ -513,11 +724,31 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
           console.log(`[Sheet Debug] Row ${index + 1}: "${originalName}" -> "${normalizedName}"`);
         }
         
-        if (row[8]) { // Embed column (V)
-          existingEmbeds.set(index + 1, row[8].toString());
+        // Check if embed column exists and has data
+        if (row.length > embedColumnIndex && row[embedColumnIndex]) { // Embed column
+          existingEmbeds.set(index + 1, row[embedColumnIndex].toString());
+        }
+      } else {
+        // Debug why this row was skipped
+        if (index < 5) {
+          console.log(`[Sheet Debug] Row ${index + 1} SKIPPED: rowLength=${row.length}, nameColumnIndex=${nameColumnIndex}, hasNameData=${row[nameColumnIndex] ? 'YES' : 'NO'}`);
         }
       }
     });
+    
+    console.log(`[Sheet Update] 📊 PROCESSING SUMMARY:`);
+    console.log(`[Sheet Update] 📝 Processed rows: ${processedRows}`);
+    console.log(`[Sheet Update] ✅ Valid names found: ${validNameCount}`);
+    console.log(`[Sheet Update] 🗺️ Name lookup map size: ${nameToRowIndex.size}`);
+    console.log(`[Sheet Update] 💾 Existing embeds: ${existingEmbeds.size}`);
+    
+    // Log sample of names for debugging
+    if (originalNames.length > 0) {
+      console.log(`[Sheet Debug] Sample names from sheet (first 10):`);
+      originalNames.slice(0, 10).forEach((name, i) => {
+        console.log(`[Sheet Debug]   ${i + 1}. "${name}"`);
+      });
+    }
 
     console.log(`[Sheet Debug] Total rows with names: ${nameToRowIndex.size}`);
 
@@ -525,25 +756,64 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
     const updates = [];
     const results = [];
     const stats = { updated: 0, notFound: 0, skipped: 0, error: 0 };
+    
+    console.log(`\n🎯 [Sheet Update] ========= VIDEO PROCESSING PHASE =========`);
+    console.log(`[Sheet Update] 📹 Videos to process: ${videos.length}`);
+    console.log(`[Sheet Update] 🏗️ Lookup map contains ${nameToRowIndex.size} video names`);
+    console.log(`[Sheet Update] 🔧 Search will be performed in:`);
+    console.log(`[Sheet Update]   📊 Spreadsheet: ${spreadsheetId}`);
+    console.log(`[Sheet Update]   📋 Sheet: "${sheetName}"`);
+    console.log(`[Sheet Update]   📍 Range: ${rangeToRead}`);
+    console.log(`[Sheet Update]   🏷️ Name Column: ${nameColumn} (index ${nameColumnIndex})`);
+    console.log(`[Sheet Update]   💾 Embed Column: ${embedColumn} (index ${embedColumnIndex})`);
+    console.log(`[Sheet Update] ===============================================\n`);
 
     for (const video of videos) {
+      const videoStartTime = Date.now();
+      const videoIndex = videos.indexOf(video) + 1;
+      
       // Normalize video name in the same way
       const originalVideoName = video.name;
       const normalizedVideoName = normalizeText(originalVideoName);
       
-      console.log(`[Sheet Update] Looking for: "${originalVideoName}" -> normalized: "${normalizedVideoName}"`);
+      console.log(`\n🔍 [Sheet Update] ===== PROCESSING VIDEO ${videoIndex}/${videos.length} =====`);
+      console.log(`[Sheet Update] 📹 Original name: "${originalVideoName}"`);
+      console.log(`[Sheet Update] 🔤 Normalized name: "${normalizedVideoName}"`);
+      console.log(`[Sheet Update] ⏰ Started at: ${new Date().toLocaleTimeString()}`);
       
+      // For first 3 videos, show more detailed comparison
+      if (videoIndex <= 3) {
+        console.log(`[Sheet Update] 🔍 DETAILED SEARCH for video ${videoIndex}:`);
+        console.log(`[Sheet Update] 📝 Will search in ${nameToRowIndex.size} cached names`);
+        console.log(`[Sheet Update] 🎯 Looking for exact match with: "${normalizedVideoName}"`);
+      }
+      
+      const searchStartTime = Date.now();
       let rowIndex = nameToRowIndex.get(normalizedVideoName);
+      let matchType = 'exact';
+      
+      const exactSearchTime = Date.now() - searchStartTime;
+      
+      if (rowIndex) {
+        console.log(`[Sheet Update] ✅ EXACT MATCH FOUND in ${exactSearchTime}ms!`);
+        console.log(`[Sheet Update] 📍 Found at row: ${rowIndex}`);
+      } else {
+        console.log(`[Sheet Update] ❌ No exact match in ${exactSearchTime}ms`);
+      }
       
       // If exact match not found, try fuzzy matching
       if (!rowIndex) {
-        console.log(`[Sheet Debug] No exact match found, trying fuzzy matching...`);
+        console.log(`[Sheet Debug] ❌ No exact match found, trying fuzzy matching...`);
+        const fuzzyStartTime = Date.now();
         const fuzzyMatch = findBestMatch(originalVideoName, originalNames);
+        const fuzzySearchTime = Date.now() - fuzzyStartTime;
+        console.log(`[Sheet Update] 🔍 Fuzzy search completed in ${fuzzySearchTime}ms`);
         
         if (fuzzyMatch && fuzzyMatch.confidence >= 0.6) { // Accept matches with 60%+ confidence
-          console.log(`[Sheet Debug] Fuzzy match found:`, fuzzyMatch);
+          console.log(`[Sheet Debug] ✅ Fuzzy match found:`, fuzzyMatch);
           const fuzzyNormalizedName = normalizeText(fuzzyMatch.match);
           rowIndex = nameToRowIndex.get(fuzzyNormalizedName);
+          matchType = fuzzyMatch.type;
           
           if (rowIndex) {
             console.log(`[Sheet Update] Using fuzzy match: "${fuzzyMatch.match}" (confidence: ${fuzzyMatch.confidence})`);
@@ -552,10 +822,34 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
       }
       
       if (!rowIndex) {
-        // Enhanced debugging for not found videos
-        console.log(`[Sheet Debug] Video not found. Available names (first 10):`);
-        const availableNames = Array.from(nameToRowIndex.keys()).slice(0, 10);
-        availableNames.forEach(name => console.log(`  - "${name}"`));
+        const videoProcessTime = Date.now() - videoStartTime;
+        console.log(`\n❌ [Sheet Update] VIDEO NOT FOUND - DETAILED ANALYSIS:`);
+        console.log(`[Sheet Update] 📹 Searched for: "${originalVideoName}"`);
+        console.log(`[Sheet Update] 🔤 Normalized to: "${normalizedVideoName}"`);
+        console.log(`[Sheet Update] ⏱️ Search time: ${videoProcessTime}ms`);
+        console.log(`[Sheet Update] 🎯 Sheet info: "${sheetName}" (${spreadsheetId})`);
+        console.log(`[Sheet Update] 📍 Range searched: ${rangeToRead}`);
+        console.log(`[Sheet Update] �️ Names in lookup: ${nameToRowIndex.size}`);
+        
+        // Show some names from the sheet for comparison
+        const allNames = Array.from(nameToRowIndex.keys());
+        console.log(`[Sheet Debug] 📝 Sample names from sheet (first 5):`);
+        allNames.slice(0, 5).forEach((name, i) => {
+          console.log(`[Sheet Debug]   ${i + 1}. "${name}"`);
+        });
+        
+        // Look for partial matches
+        const partialMatches = allNames.filter(name => 
+          name.includes(normalizedVideoName.substring(0, 10)) || 
+          normalizedVideoName.includes(name.substring(0, 10))
+        );
+        
+        if (partialMatches.length > 0) {
+          console.log(`[Sheet Debug] 🎯 Found ${partialMatches.length} potential partial matches:`);
+          partialMatches.slice(0, 3).forEach((match, i) => {
+            console.log(`[Sheet Debug]   ${i + 1}. "${match}"`);
+          });
+        }
         
         // Try fuzzy matching for debugging
         const fuzzyMatch = findBestMatch(originalVideoName, originalNames);
@@ -563,18 +857,22 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
         if (fuzzyMatch) {
           console.log(`[Sheet Debug] Best fuzzy match found but below threshold:`, fuzzyMatch);
         } else {
-          console.log(`[Sheet Debug] No fuzzy matches found`);
+          console.log(`[Sheet Debug] No fuzzy matches found at all`);
         }
         
         results.push({ 
           videoName: video.name, 
           status: 'notFound',
-          details: 'Video name not found in sheet'
+          details: `Video "${originalVideoName}" not found in sheet "${sheetName}" with ${nameToRowIndex.size} entries`
         });
         stats.notFound++;
+        
+        console.log(`[Sheet Update] ❌ VIDEO NOT FOUND: "${originalVideoName}" - marked as notFound`);
         continue;
       }
 
+      const videoProcessTime = Date.now() - videoStartTime;
+      console.log(`[Sheet Update] ✅ MATCH FOUND for "${originalVideoName}" in row ${rowIndex} (${matchType} match, ${videoProcessTime}ms)`);
       console.log(`[Sheet Update] Found video in row ${rowIndex}`);
       
       const existingEmbed = existingEmbeds.get(rowIndex);
@@ -590,14 +888,14 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
       }
 
       updates.push({
-        range: `${sheetName}!V${rowIndex}`,
+        range: `${sheetName}!${embedColumn}${rowIndex}`,
         values: [[video.embed_code]]
       });
 
       // Also update final minutes if provided
       if (video.final_minutes !== undefined) {
         updates.push({
-          range: `${sheetName}!P${rowIndex}`,
+          range: `${sheetName}!${finalMinutesColumn}${rowIndex}`,
           values: [[Math.round(video.final_minutes)]]
         });
       }
@@ -674,9 +972,27 @@ app.post('/api/sheets/update-bunny-embeds', async (req, res) => {
 // Sheets update endpoint for final minutes
 app.post('/api/sheets/update-final-minutes', async (req, res) => {
   try {
-    const { videos } = req.body;
+    const { 
+      videos, 
+      spreadsheetId: customSpreadsheetId, 
+      sheetName: customSheetName, 
+      nameColumn = 'M', 
+      embedColumn = 'V', 
+      finalMinutesColumn = 'P' 
+    } = req.body;
     
     console.log(`[Final Minutes Update] Received request with ${videos ? videos.length : 0} videos`);
+    
+    // Use custom sheet config if provided, otherwise use environment defaults
+    const spreadsheetId = customSpreadsheetId || process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const sheetName = customSheetName || process.env.GOOGLE_SHEET_NAME || 'OPERATIONS';
+    
+    if (customSpreadsheetId) {
+      console.log(`[Final Minutes Update] 📊 Using custom sheet config: ${customSpreadsheetId}, sheet: ${sheetName}`);
+      console.log(`[Final Minutes Update] 📋 Columns - Names: ${nameColumn}, Embed: ${embedColumn}, Minutes: ${finalMinutesColumn}`);
+    } else {
+      console.log(`[Final Minutes Update] ⚠️ Using environment defaults`);
+    }
     
     if (!Array.isArray(videos) || videos.length === 0) {
       return res.status(400).json({ 
@@ -705,7 +1021,7 @@ app.post('/api/sheets/update-final-minutes', async (req, res) => {
       return res.status(500).json({ success: false, message: 'Invalid Google Sheets credentials configuration' });
     }
 
-    if (!process.env.GOOGLE_SHEETS_SPREADSHEET_ID) {
+    if (!spreadsheetId) {
       return res.status(500).json({ success: false, message: 'Google Sheet Spreadsheet ID not configured.' });
     }
 
@@ -720,12 +1036,44 @@ app.post('/api/sheets/update-final-minutes', async (req, res) => {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-    const sheetName = process.env.GOOGLE_SHEET_NAME || 'OPERATIONS';
 
-    // Get existing data - now includes column P for final minutes
-    const rangeToRead = `${sheetName}!M:P`;
-    console.log(`Reading range: ${rangeToRead}`);
+    // Helper function to convert column letter to index (A=0, B=1, etc.)
+    function columnToIndex(column) {
+      let index = 0;
+      for (let i = 0; i < column.length; i++) {
+        index = index * 26 + (column.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+      }
+      return index - 1;
+    }
+
+    // Helper function to convert column index back to letters
+    function indexToColumn(index) {
+      let column = '';
+      index++; // Convert from 0-based to 1-based
+      while (index > 0) {
+        index--; // Convert back to 0-based for calculation
+        column = String.fromCharCode((index % 26) + 'A'.charCodeAt(0)) + column;
+        index = Math.floor(index / 26);
+      }
+      return column;
+    }
+
+    // Calculate column indices
+    const nameColumnIndex = columnToIndex(nameColumn);
+    const embedColumnIndex = columnToIndex(embedColumn);
+    const finalMinutesColumnIndex = columnToIndex(finalMinutesColumn);
+    
+    // Get existing data - expand range to ensure we capture all needed columns
+    // Calculate the rightmost column we need (between embed and final minutes columns)
+    const maxColumnIndex = Math.max(embedColumnIndex, finalMinutesColumnIndex);
+    
+    // Convert back to column letter - Fixed for multi-letter columns
+    const endColumnLetter = indexToColumn(maxColumnIndex);
+    
+    // Read starting from column A to keep zero-based indices consistent
+    const rangeToRead = `${sheetName}!A:${endColumnLetter}`;
+
+    console.log(`[Final Minutes Update] Reading range: ${rangeToRead}`);
     const sheetResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: rangeToRead,
@@ -797,8 +1145,8 @@ app.post('/api/sheets/update-final-minutes', async (req, res) => {
     // Create lookup maps with better normalization
     const originalNames = []; // Store original names for fuzzy matching
     rows.forEach((row, index) => {
-      if (row[0]) { // Name column (M)
-        const originalName = row[0].toString();
+      if (row.length > nameColumnIndex && row[nameColumnIndex]) { // Use proper name column index
+        const originalName = row[nameColumnIndex].toString();
         originalNames.push(originalName);
         
         // Normalize the name: remove extension, trim, and convert to lowercase
@@ -873,7 +1221,7 @@ app.post('/api/sheets/update-final-minutes', async (req, res) => {
       const finalMinutes = Math.round(video.final_minutes || 0);
       
       updates.push({
-        range: `${sheetName}!P${rowIndex}`,
+        range: `${sheetName}!${finalMinutesColumn}${rowIndex}`,
         values: [[finalMinutes]]
       });
 

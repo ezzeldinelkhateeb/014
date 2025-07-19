@@ -29,7 +29,8 @@ export class LibraryMatcher {
         throw new Error("No libraries available to match against.");
       }
 
-      const parseResult = parseFilename(item.filename);
+      const selectedYear = item.metadata?.year || "2026";
+      const parseResult = parseFilename(item.filename, selectedYear);
       if (!parseResult) {
         throw new Error("Could not parse filename");
       }
@@ -37,7 +38,7 @@ export class LibraryMatcher {
       // Try exact matches first (100% confidence)
       const exactFilenameMatch = this.userSelectionCache.get(item.filename);
       if (exactFilenameMatch) {
-        this.applyMatchAndCache(item, exactFilenameMatch.libraryId, exactFilenameMatch.libraryName, 100, parseResult);
+        this.applyMatchAndCache(item, exactFilenameMatch.libraryId, exactFilenameMatch.libraryName, 100, parseResult, selectedYear);
         return;
       }
 
@@ -50,7 +51,7 @@ export class LibraryMatcher {
 
       if (patternMatch) {
         // Use cached match if available
-        this.applyMatchAndCache(item, patternMatch.libraryId, patternMatch.libraryName, patternMatch.confidence, parseResult);
+        this.applyMatchAndCache(item, patternMatch.libraryId, patternMatch.libraryName, patternMatch.confidence, parseResult, selectedYear);
         return;
       }
 
@@ -70,7 +71,7 @@ export class LibraryMatcher {
       const hasSpecialMatch = bestMatch && this.checkSpecialMatchRules(parseResult, bestMatch);
 
       if (bestMatch?.library && (hasHighConfidence || exactTeacherCodeMatch || hasSpecialMatch)) {
-        this.applyMatchAndCache(item, bestMatch.library.id, bestMatch.library.name, bestMatch.confidence, parseResult);
+        this.applyMatchAndCache(item, bestMatch.library.id, bestMatch.library.name, bestMatch.confidence, parseResult, selectedYear);
         console.log(`Auto-matched "${item.filename}" to library "${bestMatch.library.name}" (confidence: ${bestMatch.confidence}%)`);
       } else {
         // Needs manual selection
@@ -79,7 +80,7 @@ export class LibraryMatcher {
         item.metadata.libraryName = "";
         item.metadata.suggestedLibraryName = this.determineSuggestedLibraryName(item.filename, parseResult.academicYear);
         
-        const collectionResult = determineCollection(parseResult);
+        const collectionResult = determineCollection(parseResult, selectedYear);
         item.metadata.collection = collectionResult.name;
         item.metadata.reason = collectionResult.reason;
         item.metadata.confidence = bestMatch?.confidence || 0;
@@ -90,7 +91,8 @@ export class LibraryMatcher {
       item.metadata.needsManualSelection = true;
       item.metadata.library = "";
       item.metadata.libraryName = "";
-      item.metadata.collection = "";
+      const collectionResultFallback = determineCollection(parseFilename(item.filename, item.metadata?.year || "2026"), item.metadata?.year || "2026");
+      item.metadata.collection = collectionResultFallback.name;
       item.metadata.confidence = 0;
     }
   }
@@ -103,15 +105,16 @@ export class LibraryMatcher {
     libraryId: string, 
     libraryName: string, 
     confidence: number, 
-    matchSource: string
+    matchSource: string,
+    year: string
   ): void {
     item.metadata.library = libraryId;
     item.metadata.libraryName = libraryName;
     item.metadata.needsManualSelection = false;
     item.metadata.confidence = confidence;
     
-    const parseResult = parseFilename(item.filename);
-    const collectionResult = determineCollection(parseResult);
+    const parseResult = parseFilename(item.filename, year);
+    const collectionResult = determineCollection(parseResult, year);
     item.metadata.collection = collectionResult.name;
     item.metadata.reason = collectionResult.reason;
 
@@ -131,7 +134,8 @@ export class LibraryMatcher {
     libraryId: string, 
     libraryName: string, 
     confidence: number, 
-    parseResult: any
+    parseResult: any,
+    year: string
   ): void {
     // Basic application
     item.metadata.library = libraryId;
@@ -140,7 +144,7 @@ export class LibraryMatcher {
     item.metadata.confidence = confidence;
     
     // Set collection based on parsed information
-    const collectionResult = determineCollection(parseResult);
+    const collectionResult = determineCollection(parseResult, year);
     item.metadata.collection = collectionResult.name;
     item.metadata.reason = collectionResult.reason;
     

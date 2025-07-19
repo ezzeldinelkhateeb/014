@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useToast } from "./use-toast";
 import { bunnyService } from "../lib/bunny-service";
 import { updateSheetForVideo as updateSheetApi } from "../lib/api"; // Renamed import
+import { type SheetConfig } from "../lib/sheet-config/sheet-config-manager"; // Import sheet config
 
 interface SheetUpdateState {
   open: boolean;
@@ -20,7 +21,7 @@ interface SheetUpdateState {
   setOpen: (open: boolean) => void;
 }
 
-export function useSheetUpdater() {
+export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null) {
   const { toast } = useToast();
   const [isUpdatingSheet, setIsUpdatingSheet] = useState(false);
   const [isUpdatingFinalMinutes, setIsUpdatingFinalMinutes] = useState(false);
@@ -40,30 +41,39 @@ export function useSheetUpdater() {
   // Function to update sheet for a single video
   const updateSheetForVideo = useCallback(async (videoTitle: string, videoGuid: string, libraryId: string) => {
     try {
-      console.log(`Attempting sheet update for: ${videoTitle} (GUID: ${videoGuid})`);
-      const result = await updateSheetApi(videoTitle, videoGuid, libraryId);
+      console.log(`[useSheetUpdater] Attempting sheet update for: ${videoTitle} (GUID: ${videoGuid})`);
+      
+      // Get current sheet config
+      const currentSheetConfig = getCurrentSheetConfig?.();
+      if (currentSheetConfig) {
+        console.log(`[useSheetUpdater] 📊 Using custom sheet config: "${currentSheetConfig.name}"`);
+      } else {
+        console.log(`[useSheetUpdater] No custom sheet config, using environment defaults`);
+      }
+      
+      const result = await updateSheetApi(videoTitle, videoGuid, libraryId, currentSheetConfig);
       
       if (result.success) {
-        console.log(`Sheet updated successfully for: ${videoTitle}`);
+        console.log(`[useSheetUpdater] ✅ Sheet updated successfully for: ${videoTitle}`);
       } else {
-        console.warn(`Sheet update skipped or failed for ${videoTitle}: ${result.message}`);
+        console.warn(`[useSheetUpdater] Sheet update skipped or failed for ${videoTitle}: ${result.message}`);
         toast({
-          title: `⚠️ Sheet Update Issue`,
+          title: `Sheet Update Issue`,
           description: `Could not update sheet for "${videoTitle}". ${result.message}`,
           variant: "warning",
           duration: 5000
         });
       }
     } catch (error) {
-      console.error(`Error updating sheet for ${videoTitle}:`, error);
+      console.error(`[useSheetUpdater] ❌ Error updating sheet for ${videoTitle}:`, error);
       toast({
-        title: `⚠️ Sheet Update Failed`,
+        title: `Sheet Update Failed`,
         description: `Could not update sheet for "${videoTitle}". ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "warning",
         duration: 7000
       });
     }
-  }, [toast]);
+  }, [toast, getCurrentSheetConfig]);
 
   // Handler for bulk sheet update
   const handleUpdateSheet = useCallback(async (selectedVideos: Set<string>, allVideos: any[], selectedLibrary: string) => {
@@ -93,10 +103,48 @@ export function useSheetUpdater() {
       const response = await fetch('/api/sheets/update-bunny-embeds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videos: embedUpdates })
+        body: JSON.stringify({ 
+          videos: embedUpdates,
+          // Add current sheet config if available
+          ...(getCurrentSheetConfig?.() && {
+            spreadsheetId: getCurrentSheetConfig().spreadsheetId,
+            sheetName: getCurrentSheetConfig().sheetName,
+            nameColumn: getCurrentSheetConfig().videoNameColumn,
+            embedColumn: getCurrentSheetConfig().embedCodeColumn,
+            finalMinutesColumn: getCurrentSheetConfig().finalMinutesColumn
+          })
+        })
       });
+      
+      console.log(`[useSheetUpdater] 📡 REQUEST SENT TO API:`);
+      console.log(`[useSheetUpdater] 📹 Videos count: ${embedUpdates.length}`);
+      
+      const currentConfig = getCurrentSheetConfig?.();
+      if (currentConfig) {
+        console.log(`[useSheetUpdater] 📊 Using custom sheet config in API call:`);
+        console.log(`[useSheetUpdater] 🆔 Spreadsheet ID: ${currentConfig.spreadsheetId}`);
+        console.log(`[useSheetUpdater] 📋 Sheet Name: ${currentConfig.sheetName}`);
+        console.log(`[useSheetUpdater] 📍 Columns: ${currentConfig.videoNameColumn}, ${currentConfig.embedCodeColumn}, ${currentConfig.finalMinutesColumn}`);
+      } else {
+        console.log(`[useSheetUpdater] No sheet config available - using environment defaults`);
+      }
+      
+      console.log(`[useSheetUpdater] 📝 First video example:`, embedUpdates[0]);
 
       const result = await response.json();
+      
+      console.log(`[useSheetUpdater] 📥 RESPONSE RECEIVED FROM API:`);
+      console.log(`[useSheetUpdater] ✅ Success: ${result.success}`);
+      console.log(`[useSheetUpdater] 📊 Stats:`, result.stats);
+      console.log(`[useSheetUpdater] 📝 Message: ${result.message}`);
+      console.log(`[useSheetUpdater] 📋 Results count: ${result.results ? result.results.length : 0}`);
+      
+      if (result.results && result.results.length > 0) {
+        console.log(`[useSheetUpdater] 🔍 Detailed results:`);
+        result.results.forEach((res, index) => {
+          console.log(`[useSheetUpdater]   ${index + 1}. "${res.videoName}" -> ${res.status} (${res.details || 'no details'})`);
+        });
+      }
 
       if (result.success) {
         // Directly use the detailed results from the API
@@ -151,7 +199,17 @@ export function useSheetUpdater() {
         throw new Error(result.message || 'Sheet update failed');
       }
     } catch (error) {
-      console.error('Sheet update error:', error);
+      console.error(`[useSheetUpdater] ❌ BULK UPDATE ERROR:`, error);
+      console.error(`[useSheetUpdater] 📊 Context: ${selectedVideos.size} videos selected, ${allVideos.length} total videos available`);
+      console.error(`[useSheetUpdater] 🏷️ Library: ${selectedLibrary}`);
+      
+      const currentConfig = getCurrentSheetConfig?.();
+      if (currentConfig) {
+        console.error(`[useSheetUpdater] 📋 Was using custom sheet config: ${currentConfig.name} (${currentConfig.spreadsheetId})`);
+      } else {
+        console.error(`[useSheetUpdater] Was using environment defaults (no custom config)`);
+      }
+      
       toast({
         title: "❌ Sheet Update Failed",
         description: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -178,7 +236,7 @@ export function useSheetUpdater() {
     try {
       const videosToUpdate = allVideos.filter(v => selectedVideos.has(v.guid));
       
-      console.log(`🎬 [FINAL MINUTES] Starting duration check for ${videosToUpdate.length} videos...`);
+      console.log(`[FINAL MINUTES] Starting duration check for ${videosToUpdate.length} videos...`);
       
       // Get video details including duration for each selected video
       const videoUpdates = await Promise.all(
@@ -207,14 +265,14 @@ export function useSheetUpdater() {
                 durationText = `${seconds}s`;
               }
               
-              console.log(`🎬 [FINAL MINUTES] "${video.title}": ${durationText} (Total: ${durationInSeconds}s = ${durationInMinutes} minutes)`);
+              console.log(`[FINAL MINUTES] "${video.title}": ${durationText} (Total: ${durationInSeconds}s = ${durationInMinutes} minutes)`);
               
               return {
                 name: video.title,
                 final_minutes: durationInMinutes
               };
             } else {
-              console.warn(`⚠️ [FINAL MINUTES] No duration available for "${video.title}"`);
+              console.warn(`[FINAL MINUTES] No duration available for "${video.title}"`);
               return {
                 name: video.title,
                 final_minutes: 0
@@ -235,10 +293,46 @@ export function useSheetUpdater() {
       const response = await fetch('/api/sheets/update-final-minutes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videos: videoUpdates })
+        body: JSON.stringify({ 
+          videos: videoUpdates,
+          // Add current sheet config if available
+          ...(getCurrentSheetConfig?.() && {
+            spreadsheetId: getCurrentSheetConfig().spreadsheetId,
+            sheetName: getCurrentSheetConfig().sheetName,
+            nameColumn: getCurrentSheetConfig().videoNameColumn,
+            embedColumn: getCurrentSheetConfig().embedCodeColumn,
+            finalMinutesColumn: getCurrentSheetConfig().finalMinutesColumn
+          })
+        })
       });
+      
+      console.log(`[useSheetUpdater] 📡 FINAL MINUTES REQUEST SENT:`);
+      console.log(`[useSheetUpdater] 📹 Videos count: ${videoUpdates.length}`);
+      
+      const currentConfigFinal = getCurrentSheetConfig?.();
+      if (currentConfigFinal) {
+        console.log(`[useSheetUpdater] 📊 Using custom sheet config for final minutes:`);
+        console.log(`[useSheetUpdater] 🆔 Spreadsheet ID: ${currentConfigFinal.spreadsheetId}`);
+        console.log(`[useSheetUpdater] 📋 Sheet Name: ${currentConfigFinal.sheetName}`);
+        console.log(`[useSheetUpdater] 📍 Columns: ${currentConfigFinal.videoNameColumn}, ${currentConfigFinal.embedCodeColumn}, ${currentConfigFinal.finalMinutesColumn}`);
+      } else {
+        console.log(`[useSheetUpdater] No sheet config - using env defaults for final minutes`);
+      }
 
       const result = await response.json();
+      
+      console.log(`[useSheetUpdater] 📥 FINAL MINUTES RESPONSE:`);
+      console.log(`[useSheetUpdater] ✅ Success: ${result.success}`);
+      console.log(`[useSheetUpdater] 📊 Stats:`, result.stats);
+      console.log(`[useSheetUpdater] 📝 Message: ${result.message}`);
+      console.log(`[useSheetUpdater] 📋 Results count: ${result.results ? result.results.length : 0}`);
+      
+      if (result.results && result.results.length > 0) {
+        console.log(`[useSheetUpdater] 🔍 Final minutes detailed results:`);
+        result.results.forEach((res, index) => {
+          console.log(`[useSheetUpdater]   ${index + 1}. "${res.videoName}" -> ${res.status} (${res.details || 'no details'})`);
+        });
+      }
 
       if (result.success) {
         // Directly use the detailed results from the API
@@ -291,7 +385,17 @@ export function useSheetUpdater() {
         throw new Error(result.message || 'Final minutes update failed');
       }
     } catch (error) {
-      console.error('Final minutes update error:', error);
+      console.error(`[useSheetUpdater] ❌ FINAL MINUTES UPDATE ERROR:`, error);
+      console.error(`[useSheetUpdater] 📊 Context: ${selectedVideos.size} videos selected for final minutes update`);
+      console.error(`[useSheetUpdater] 🏷️ Library: ${selectedLibrary}`);
+      
+      const currentConfigFinal = getCurrentSheetConfig?.();
+      if (currentConfigFinal) {
+        console.error(`[useSheetUpdater] 📋 Was using custom sheet config: ${currentConfigFinal.name} (${currentConfigFinal.spreadsheetId})`);
+      } else {
+        console.error(`[useSheetUpdater] Was using environment defaults for final minutes`);
+      }
+      
       toast({
         title: "❌ Final Minutes Update Failed",
         description: error instanceof Error ? error.message : 'Unknown error occurred',

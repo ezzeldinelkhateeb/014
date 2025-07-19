@@ -50,7 +50,127 @@ export interface CollectionConfig {
 }
 
 export const COLLECTIONS_CONFIG: { [year: string]: CollectionConfig[] } = {
+  "2023": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2024": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
   "2025": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2026": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2027": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2028": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2029": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2030": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2031": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2032": [
+    {
+      name: "RE",
+      pattern: /^RE-/i,
+      priority: 1
+    },
+    {
+      name: "QV",
+      pattern: /[Q]\d+$/i,
+      priority: 2
+    }
+  ],
+  "2033": [
     {
       name: "RE",
       pattern: /^RE-/i,

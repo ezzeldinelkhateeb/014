@@ -67,6 +67,88 @@ router.post('/create-collection', async (req, res) => {
   }
 });
 
+// New routes for handling collection operations via Bunny.net API
+router.get('/video/library/:libraryId/collections', async (req, res) => {
+  try {
+    const { libraryId } = req.params;
+    const apiKey = req.headers['accesskey'] || req.headers['AccessKey'] || req.headers['accessKey'] || req.headers['Accesskey'];
+
+    if (!libraryId) {
+      return res.status(400).json({ error: 'Missing libraryId parameter' });
+    }
+
+    if (!apiKey) {
+      return res.status(401).json({ error: 'Missing AccessKey header' });
+    }
+
+    const response = await axios({
+      method: 'GET',
+      url: `https://video.bunnycdn.com/library/${libraryId}/collections`,
+      headers: {
+        'Accept': 'application/json',
+        'AccessKey': apiKey
+      },
+      validateStatus: () => true // Return response regardless of status code
+    });
+
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error('[Collection Proxy] Error fetching collections:', error.message);
+    return res.status(500).json({
+      error: 'Failed to fetch collections',
+      message: error.message
+    });
+  }
+});
+
+router.post('/video/library/:libraryId/collections', async (req, res) => {
+  try {
+    const { libraryId } = req.params;
+    const { name } = req.body;
+    const apiKey = req.headers['accesskey'] || req.headers['AccessKey'] || req.headers['accessKey'] || req.headers['Accesskey'];
+
+    if (!libraryId || !name) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    if (!apiKey) {
+      return res.status(401).json({ error: 'Missing AccessKey header' });
+    }
+
+    const response = await axios({
+      method: 'POST',
+      url: `https://video.bunnycdn.com/library/${libraryId}/collections`,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'AccessKey': apiKey
+      },
+      data: { name },
+      validateStatus: () => true // Don't throw on error status
+    });
+
+    if (response.status >= 400) {
+      console.error('[Collection Proxy] Error response from Bunny API:', {
+        status: response.status,
+        data: response.data
+      });
+      return res.status(response.status).json({
+        error: 'Collection creation failed',
+        message: response.data,
+        status: response.status
+      });
+    }
+
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error('[Collection Proxy] Error creating collection:', error.message);
+    return res.status(500).json({
+      error: 'Failed to create collection',
+      message: error.message
+    });
+  }
+});
+
 // Specialized endpoint for creating videos
 router.post('/create-video', async (req, res) => {
   try {

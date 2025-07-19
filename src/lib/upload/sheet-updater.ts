@@ -1,6 +1,7 @@
 import { showToast } from "../../hooks/use-toast";
 import type { UploadOperations } from "./upload-operations";
 import { parseFilename, isQuestionFile } from "../filename-parser"; // Import filename parser functions
+import type { SheetConfig } from "../sheet-config/sheet-config-manager";
 
 type SheetUpdateStatus = 'pending' | 'error' | 'skipped' | 'updated' | 'notFound' | 'processing';
 
@@ -34,6 +35,7 @@ export class SheetUpdater {
   private uploadOperations?: IUploadOperations;
   private processingVideos: Set<string> = new Set();
   private uploadsStillInProgress: boolean = true; // Track if uploads are still happening
+  private currentSheetConfig: SheetConfig | null = null; // Track current sheet config
 
   private sheetUpdateResults: Map<string, {
     videoName: string;
@@ -46,6 +48,15 @@ export class SheetUpdater {
   constructor(uploadOperations?: IUploadOperations, onAllUpdatesComplete?: () => void) {
     this.onAllUpdatesComplete = onAllUpdatesComplete;
     this.uploadOperations = uploadOperations;
+  }
+
+  setSheetConfig(config: SheetConfig | null): void {
+    this.currentSheetConfig = config;
+    console.log(`[SheetUpdater] Sheet config updated:`, config ? `${config.name} (${config.spreadsheetId})` : 'using environment defaults');
+  }
+
+  getCurrentSheetConfig(): SheetConfig | null {
+    return this.currentSheetConfig;
   }
 
   setTotalExpectedUpdates(count: number): void {
@@ -276,13 +287,13 @@ export class SheetUpdater {
                 durationText = \`\${seconds}s\`;
               }
               
-              console.log(\`🎬 [UPLOAD] Using pre-extracted duration for "\${videoName}": \${durationText} (Total: \${videoDurationSeconds}s = \${finalMinutes} minutes)\`);
+              console.log(\`[UPLOAD] Using pre-extracted duration for "\${videoName}": \${durationText} (Total: \${videoDurationSeconds}s = \${finalMinutes} minutes)\`);
             } else if (!isQuestion) {
               // Fallback: try to get from Bunny API (for Video Management use case) - only for non-questions
               if (!accessKey || accessKey.length === 0) {
                 console.warn(\`⚠️ [Worker] No duration provided and no API key available for video details request\`);
               } else {
-                console.log(\`🔑 [Worker] No pre-extracted duration, trying Bunny API with key length \${accessKey.length} characters\`);
+                console.log(\`[Worker] No pre-extracted duration, trying Bunny API with key length \${accessKey.length} characters\`);
                 
                 try {
                   const videoDetailsResponse = await fetch(\`\${origin}/api/proxy/video/library/\${libraryId}/videos/\${videoGuid}\`, {
@@ -312,7 +323,7 @@ export class SheetUpdater {
                         durationText = \`\${seconds}s\`;
                       }
                       
-                      console.log(\`🎬 [API] Retrieved duration from Bunny for "\${videoName}": \${durationText} (Total: \${videoDurationFromAPI}s = \${finalMinutes} minutes)\`);
+                      console.log(\`[API] Retrieved duration from Bunny for "\${videoName}": \${durationText} (Total: \${videoDurationFromAPI}s = \${finalMinutes} minutes)\`);
                     } else {
                       console.warn(\`⚠️ [API] No duration info available for "\${videoName}"\`);
                     }
@@ -341,6 +352,20 @@ export class SheetUpdater {
               console.log(\`🚫 [FINAL MINUTES] Skipping final_minutes for question video: "\${videoName}"\`);
             }
 
+            // Build request body and inject custom sheet configuration (if provided)
+            const requestBody = {
+              videos: [videoData]
+            };
+
+            if (e.data.sheetConfig) {
+              requestBody.spreadsheetId      = e.data.sheetConfig.spreadsheetId;
+              requestBody.sheetName          = e.data.sheetConfig.sheetName;
+              // Support both canonical and alias field names
+              requestBody.nameColumn         = e.data.sheetConfig.videoNameColumn  || e.data.sheetConfig.nameColumn;
+              requestBody.embedColumn        = e.data.sheetConfig.embedCodeColumn   || e.data.sheetConfig.embedColumn;
+              requestBody.finalMinutesColumn = e.data.sheetConfig.finalMinutesColumn;
+            }
+
             const data = await fetchWithRetry(
               \`\${origin}/api/sheets/update-bunny-embeds\`,
               {
@@ -348,9 +373,7 @@ export class SheetUpdater {
                 headers: {
                   'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                  videos: [videoData]
-                })
+                body: JSON.stringify(requestBody)
               }
             );
 
@@ -527,7 +550,8 @@ export class SheetUpdater {
       origin,
       accessKey,
       videoDurationSeconds, // Pass the pre-extracted duration
-      isQuestion
+      isQuestion,
+      sheetConfig: this.currentSheetConfig // Pass current sheet configuration
     });
 
     worker.addEventListener('message', (e) => {

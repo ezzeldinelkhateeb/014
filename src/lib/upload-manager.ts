@@ -8,6 +8,7 @@ import type { Year } from "../types/common";
 import { showToast } from "../hooks/use-toast";
 import { bunnyService } from "./bunny/service";
 import { cache } from "./cache"; // Add cache import
+import { type SheetConfig } from "./sheet-config/sheet-config-manager"; // Add sheet config import
 
 // Define an interface for the upload operations callback
 interface UploadOperationsInterface {
@@ -34,7 +35,7 @@ const extractVideoDurationFromFile = (file: File): Promise<number | undefined> =
     
     // Set timeout to avoid hanging
     const timeout = setTimeout(() => {
-      console.warn(`⚠️ [FILE] Timeout loading video metadata for "${file.name}"`);
+      console.warn(`[FILE] Timeout loading video metadata for "${file.name}"`);
       cleanup();
       resolve(undefined);
     }, 10000); // 10 second timeout
@@ -44,17 +45,17 @@ const extractVideoDurationFromFile = (file: File): Promise<number | undefined> =
       const duration = video.duration;
       cleanup();
       if (isFinite(duration) && duration > 0) {
-        console.log(`🎬 [FILE] Extracted duration for "${file.name}": ${Math.round(duration)}s (${Math.round(duration/60)}m)`);
+        console.log(`[FILE] Extracted duration for "${file.name}": ${Math.round(duration)}s (${Math.round(duration/60)}m)`);
         resolve(Math.round(duration));
       } else {
-        console.warn(`⚠️ [FILE] Could not extract valid duration for "${file.name}"`);
+        console.warn(`[FILE] Could not extract valid duration for "${file.name}"`);
         resolve(undefined);
       }
     };
     
     video.onerror = () => {
       clearTimeout(timeout);
-      console.warn(`⚠️ [FILE] Error loading video metadata for "${file.name}"`);
+      console.warn(`[FILE] Error loading video metadata for "${file.name}"`);
       cleanup();
       resolve(undefined);
     };
@@ -63,7 +64,7 @@ const extractVideoDurationFromFile = (file: File): Promise<number | undefined> =
       video.src = URL.createObjectURL(file);
     } catch (error) {
       clearTimeout(timeout);
-      console.warn(`⚠️ [FILE] Error creating object URL for "${file.name}":`, error);
+      console.warn(`[FILE] Error creating object URL for "${file.name}":`, error);
       resolve(undefined);
     }
   });
@@ -78,6 +79,7 @@ export class UploadManager {
   private completionCallback: ((results: UploadResult[]) => void) | null = null;
   private totalFiles: number = 0;
   private successfulUploadsCount: number = 0; // Track successful uploads for sheet update counting
+  private currentSheetConfig: SheetConfig | null = null; // Add sheet config tracking
   private uploadSettings: UploadSettings = {
     chunkSize: 20 * 1024 * 1024, // 20 MB
     maxConcurrentUploads: 4,
@@ -403,6 +405,20 @@ export class UploadManager {
            this.queueManager.getProcessingCount() > 0;
   }
 
+  /**
+   * Get the current global pause status of the underlying queue manager.
+   */
+  getGlobalPauseStatus(): boolean {
+    return this.queueManager.getGlobalPauseStatus();
+  }
+
+  /**
+   * Expose the SheetUpdater instance for external monitoring & reports.
+   */
+  getSheetUpdater(): SheetUpdater {
+    return this.sheetUpdater;
+  }
+
   removeFileFromQueue(filename: string): void {
     this.queueManager.removeFileFromQueue(filename);
   }
@@ -443,12 +459,26 @@ export class UploadManager {
     showToast({ title: "⚙️ Settings Updated", description: "Upload settings have been applied.", variant: 'default' });
   }
 
-  getGlobalPauseStatus(): boolean {
-    return this.queueManager.getGlobalPauseStatus();
+  // إعداد الشيت المخصص
+  updateSheetConfig(config: SheetConfig | null): void {
+    this.currentSheetConfig = config;
+    if (this.sheetUpdater) {
+      this.sheetUpdater.setSheetConfig(config);
+      console.log(`[UploadManager] ✅ Sheet config updated in SheetUpdater`);
+    } else {
+      console.warn(`[UploadManager] SheetUpdater not initialized yet`);
+    }
+    
+    if (config) {
+      console.log(`[UploadManager] 📊 Updated sheet config to: "${config.name}" (ID: ${config.spreadsheetId})`);
+      console.log(`[UploadManager] 📋 Columns - Names: ${config.videoNameColumn}, Embed: ${config.embedCodeColumn}, Minutes: ${config.finalMinutesColumn}`);
+    } else {
+      console.log(`[UploadManager] 🔄 Cleared sheet config - will use environment defaults`);
+    }
   }
 
-  public getSheetUpdater() {
-    return this.sheetUpdater;
+  getCurrentSheetConfig(): SheetConfig | null {
+    return this.currentSheetConfig;
   }
 
   private async createQueueItem(file: File, selectedYear: string): Promise<QueueItem> {
@@ -457,13 +487,14 @@ export class UploadManager {
     let parsedResult: ReturnType<typeof parseFilename> | null = null;
 
     try {
-      parsedResult = parseFilename(file.name);
-      const collectionResult = determineCollection(parsedResult || { type: 'FULL', academicYear: selectedYear });
+      // Pass the selectedYear to ensure correct collection naming
+      parsedResult = parseFilename(file.name, selectedYear);
+      const collectionResult = determineCollection(parsedResult || { type: 'FULL', academicYear: selectedYear }, selectedYear);
       collectionName = collectionResult.name;
       collectionReason = collectionResult.reason;
     } catch (err) {
       console.warn(`Error parsing filename for collection: ${file.name}`, err);
-      const fallbackCollection = determineCollection({ type: 'FULL', academicYear: selectedYear });
+      const fallbackCollection = determineCollection({ type: 'FULL', academicYear: selectedYear }, selectedYear);
       collectionName = fallbackCollection.name;
       collectionReason = fallbackCollection.reason;
     }
@@ -476,10 +507,10 @@ export class UploadManager {
         if (videoDurationSeconds !== undefined) {
           console.log(`📝 [QUEUE] Stored duration for "${file.name}": ${videoDurationSeconds}s (${Math.round(videoDurationSeconds/60)}m)`);
         } else {
-          console.warn(`⚠️ [QUEUE] Could not extract duration for "${file.name}"`);
+          console.warn(`[QUEUE] Could not extract duration for "${file.name}"`);
         }
       } catch (error) {
-        console.warn(`⚠️ [QUEUE] Failed to extract duration for "${file.name}":`, error);
+                  console.warn(`[QUEUE] Failed to extract duration for "${file.name}":`, error);
       }
     }
 
@@ -644,7 +675,7 @@ export class UploadManager {
         videoDurationSeconds = matchingItem.metadata.videoDurationSeconds;
         console.log(`📋 [UploadManager] Found pre-extracted duration for "${videoTitle}": ${videoDurationSeconds}s`);
       } else {
-        console.log(`⚠️ [UploadManager] No pre-extracted duration found for "${videoTitle}"`);
+        console.log(`[UploadManager] No pre-extracted duration found for "${videoTitle}"`);
       }
       
       // Trigger background sheet update with duration - don't await this

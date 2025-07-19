@@ -60,6 +60,15 @@ export function formatBytes(bytes: number, decimals = 2): string {
 }
 
 /**
+ * Formats a number with thousand separators.
+ * @param num The number to format.
+ * @returns A formatted string with commas as thousand separators.
+ */
+export function formatNumber(num: number): string {
+  return num.toLocaleString('ar-EG');
+}
+
+/**
  * Formats seconds into a human-readable time string (h m s).
  * @param totalSeconds The total number of seconds.
  * @returns A formatted string representing the time duration.

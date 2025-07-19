@@ -33,7 +33,8 @@ if (!envPath) {
 console.log('Environment variables loaded:', {
   GOOGLE_SHEETS_SPREADSHEET_ID: process.env.GOOGLE_SHEETS_SPREADSHEET_ID ? '[SET]' : '[NOT SET]',
   GOOGLE_SHEETS_CREDENTIALS_JSON: process.env.GOOGLE_SHEETS_CREDENTIALS_JSON ? '[SET]' : '[NOT SET]',
-  GOOGLE_SHEET_NAME: process.env.GOOGLE_SHEET_NAME || 'OPERATIONS'
+  GOOGLE_SHEET_NAME: process.env.GOOGLE_SHEET_NAME || 'OPERATIONS',
+  VITE_BUNNY_API_KEY: process.env.VITE_BUNNY_API_KEY ? `[SET - ${process.env.VITE_BUNNY_API_KEY.length} chars]` : '[NOT SET]'
 });
 
 export const envConfig = {
@@ -45,9 +46,68 @@ export const envConfig = {
       : null
   },
   bunny: {
-    apiKey: import.meta.env.VITE_BUNNY_API_KEY,
+    apiKey: process.env.VITE_BUNNY_API_KEY,
   }
 };
+
+// Helper functions for API key management
+export function ensureBunnyApiKey(): string {
+  const apiKey = process.env.VITE_BUNNY_API_KEY;
+  
+  if (!apiKey) {
+    const errorMessage = 'VITE_BUNNY_API_KEY environment variable is not set or empty. Please check your .env file.';
+    console.error('[Environment Error]', errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  return apiKey;
+}
+
+export function getBunnyApiKey(): string | null {
+  return process.env.VITE_BUNNY_API_KEY || null;
+}
+
+export function checkEnvironmentHealth(): {
+  hasRequiredVars: boolean;
+  missingVars: string[];
+  warnings: string[];
+} {
+  const requiredVars = ['VITE_BUNNY_API_KEY'];
+  const optionalVars = ['GOOGLE_SHEETS_SPREADSHEET_ID', 'GOOGLE_SHEETS_CREDENTIALS_JSON'];
+  
+  const missingVars: string[] = [];
+  const warnings: string[] = [];
+  
+  // Check required variables
+  for (const varName of requiredVars) {
+    if (!process.env[varName]) {
+      missingVars.push(varName);
+    }
+  }
+  
+  // Check optional variables
+  for (const varName of optionalVars) {
+    if (!process.env[varName]) {
+      warnings.push(`Optional variable ${varName} is not set`);
+    }
+  }
+  
+  const result = {
+    hasRequiredVars: missingVars.length === 0,
+    missingVars,
+    warnings
+  };
+  
+  if (!result.hasRequiredVars) {
+    console.error('[Environment Health Check] Missing required variables:', missingVars);
+  }
+  
+  if (warnings.length > 0) {
+    console.warn('[Environment Health Check] Warnings:', warnings);
+  }
+  
+  return result;
+}
 
 // Validate required environment variables
 export function validateEnvConfig() {

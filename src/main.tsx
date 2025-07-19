@@ -5,6 +5,8 @@ import "./index.css";
 import { BrowserRouter } from "react-router-dom";
 
 import { TempoDevtools } from "tempo-devtools";
+import "./lib/startup-check"; // Run environment checks on startup
+
 TempoDevtools.init();
 
 const basename = import.meta.env.BASE_URL;

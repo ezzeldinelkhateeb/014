@@ -43,6 +43,14 @@ export class HttpClient {
       return accessToken;
     }
 
+    // Check environment variable first as it's most reliable
+    const envApiKey = (typeof window !== 'undefined' && (window as any).__env?.VITE_BUNNY_API_KEY) || 
+                      (typeof process !== 'undefined' && process.env?.VITE_BUNNY_API_KEY);
+    
+    if (envApiKey) {
+      return envApiKey;
+    }
+
     // Then try to get the library-specific key from cache
     if (libraryId) {
       // First check the in-memory map
@@ -71,12 +79,26 @@ export class HttpClient {
       }
     }
 
-    // Finally fall back to the default API key
-    if (!this.apiKey) {
-      throw new Error('No API key available. Please set a default API key or provide a library-specific key.');
+    // Fall back to instance API key
+    if (this.apiKey) {
+      return this.apiKey;
     }
 
-    return this.apiKey;
+    // Check cached default key
+    const cachedDefaultKey = cache.get('default_api_key');
+    if (cachedDefaultKey) {
+      return cachedDefaultKey;
+    }
+
+    console.error('[HttpClient] No API key available. Checked:', {
+      hasAccessToken: !!accessToken,
+      hasEnvKey: !!envApiKey,
+      hasLibraryId: !!libraryId,
+      hasInstanceKey: !!this.apiKey,
+      hasCachedDefault: !!cachedDefaultKey
+    });
+
+    throw new Error('No API key available. Please set VITE_BUNNY_API_KEY environment variable or provide an access token.');
   }
 
   setApiKey(apiKey: string): void {
@@ -126,6 +148,57 @@ export class HttpClient {
       
       if (!apiKeyToUse) {
         throw new Error('API key not set');
+      }
+
+      // Special handling for collection operations
+      if (path.includes('/collections')) {
+        console.log(`[HttpClient] Collection operation: ${options.method} ${path}`);
+        
+        // Ensure the path is routed through the video proxy
+        const collectionPath = path.startsWith('/api/proxy/') ?
+          path : `/api/proxy/video${this.cleanPath(path)}`;
+        const finalUrl = `${window.location.origin}${collectionPath}`;
+        
+        // Prepare headers
+        const headers = new Headers(options.headers || {});
+        headers.set('AccessKey', apiKeyToUse);
+        headers.set('Content-Type', 'application/json');
+        headers.set('Accept', 'application/json');
+        
+        console.log(`[HttpClient] Making collection request to: ${finalUrl}`);
+        
+        const response = await fetch(finalUrl, {
+          ...options,
+          headers,
+          signal: options.signal || AbortSignal.timeout(60000) // 1 minute timeout for collections
+        });
+
+        console.log(`[HttpClient] Collection response status: ${response.status}`);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[HttpClient] Collection request failed:`, {
+            url: finalUrl,
+            status: response.status,
+            statusText: response.statusText,
+            response: errorText
+          });
+          throw new Error(`Collection request failed: ${response.status} ${errorText}`);
+        }
+
+        const responseText = await response.text();
+        
+        try {
+          const jsonData = JSON.parse(responseText);
+          console.log(`[HttpClient] Collection operation successful`);
+          return jsonData;
+        } catch (parseError) {
+          console.error(`[HttpClient] Failed to parse collection response:`, {
+            parseError: parseError.message,
+            responseText: responseText.substring(0, 500)
+          });
+          throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+        }
       }
 
       // Special handling for create-video endpoint
@@ -303,6 +376,9 @@ export class HttpClient {
                     window.location.hostname.includes('app.vercel.com') ||
                     import.meta.env.VITE_VERCEL_ENV;
     
-    return isProduction || isVercel || this.shouldUseVideoApi(path);
+    // Always use proxy for paths that start with /api/proxy/
+    const isProxyPath = path.startsWith('/api/proxy/');
+    
+    return isProduction || isVercel || this.shouldUseVideoApi(path) || isProxyPath;
   }
 }

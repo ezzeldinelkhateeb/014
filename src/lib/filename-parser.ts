@@ -15,7 +15,7 @@ export function normalizeFilename(filename: string): string {
     .trim();
 }
 
-export function parseFilename(filename: string): ParsedFilename {
+export function parseFilename(filename: string, year: string = "2026"): ParsedFilename {
   try {
     // Remove file extension and normalize separators
     const nameOnly = filename.split('.')[0]
@@ -34,7 +34,6 @@ export function parseFilename(filename: string): ParsedFilename {
     const parts = cleanName.split('-').filter(Boolean);
 
     // Get academic year configs
-    const year = "2025"; // This could be configurable
     const configs = COLLECTIONS_CONFIG[year] || [];
 
     // Start with defaults
@@ -246,8 +245,7 @@ export function findMatchingLibrary(parsed: ParsedFilename, libraries: LibraryIn
   };
 }
 
-export function determineCollection(parsed: ParsedFilename): CollectionResult {
-  const year = "2025"; // This could be made configurable
+export function determineCollection(parsed: ParsedFilename, year: string = "2026"): CollectionResult {
   const configs = COLLECTIONS_CONFIG[year] || [];
 
   // Handle parsing errors explicitly

@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { Year } from '../../types/common';
 import LibrarySelector from '../LibrarySelector';
 import CollectionSelector from '../CollectionSelector';
-import YearSelector from '../YearSelector';
 import ManualUploadZone from '../ManualUploadZone';
 import SelectedFilesPreview from '../SelectedFilesPreview';
 import { Library, FolderOpen } from 'lucide-react';
@@ -143,13 +142,7 @@ const LibrarySettings: React.FC<LibrarySettingsProps> = ({
         </div>
       </div>
 
-      {/* Year selector */}
-      <div className="w-full hover-lift p-3 rounded-lg transition-all duration-200">
-        <YearSelector
-          selectedYear={selectedYear}
-          onYearChange={onYearChange}
-        />
-      </div>
+      {/* Year selector removed - now handled in ToolbarSection */}
 
       {/* Manual upload zone */}
       <div className="mt-4">

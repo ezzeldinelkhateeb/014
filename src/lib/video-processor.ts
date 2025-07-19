@@ -11,13 +11,13 @@ export class VideoProcessor {
       if (filename.startsWith("RE_")) type = "RE";
       else if (filename.match(/^Q\d+/)) type = "QV";
 
-      // Extract year - look for 2024 or 2025
-      const yearMatch = filename.match(/(2024|2025)/);
+      // Extract year - look for any year from 2023 to 2033
+      const yearMatch = filename.match(/(202[3-9]|203[0-3])/);
       if (!yearMatch) throw new Error("Invalid year");
 
       const metadata: VideoMetadata = {
         type,
-        year: yearMatch[0] as "2024" | "2025",
+        year: yearMatch[0] as "2023" | "2024" | "2025" | "2026" | "2027" | "2028" | "2029" | "2030" | "2031" | "2032" | "2033",
       };
 
       // Optional metadata
