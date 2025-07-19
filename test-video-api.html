@@ -11,7 +11,13 @@
     <script>        async function testVideoDetails() {
             const libraryId = '297723';
             const videoGuid = 'a9e55efa-2007-41c3-9a76-fb9770c03f45';
-            const apiKey = 'e69e7da3-6a72-4896-885d-a2fd432173a0';
+            // Get API key from environment or prompt user
+            const apiKey = prompt('Enter your Bunny.net API key:') || 'your_api_key_here';
+            
+            if (apiKey === 'your_api_key_here') {
+                alert('Please enter a valid API key');
+                return;
+            }
             
             try {
                 console.log('Testing video API...');

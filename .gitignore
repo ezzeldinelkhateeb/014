@@ -12,12 +12,16 @@ dist
 dist-ssr
 *.local
 
-# Environment files
+# Environment files - NEVER commit real environment files
 .env
 .env.local
 .env.*.local
 .env.production
 .env.development
+
+# Development environment with real credentials (if accidentally created)
+.env.development.real
+.env.production.real
 
 # Editor directories and files
 .vscode/*
@@ -39,3 +43,10 @@ core
 vite.config.
 chrome-pointer-452610-p7-53897da5c995.json
 .vercel
+
+# Additional security files
+*.key
+*.pem
+*.p12
+service-account*.json
+*credentials*.json

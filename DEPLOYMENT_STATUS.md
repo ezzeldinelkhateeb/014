@@ -1,26 +1,31 @@
 # Bunny.net Video Management Application - Deployment Guide
 
+## ⚠️ SECURITY NOTICE
+**This file previously contained sensitive credentials and has been sanitized for security.**
+
 ## ✅ Environment Configuration
 
 ### Required Environment Variables
 
-The application is now properly configured with the following environment variables:
+The application requires the following environment variables to be configured in your deployment environment:
 
 #### Bunny.net API Configuration
 ```
-VITE_BUNNY_API_KEY=e69e7da3-6a72-4896-885d-a2fd432173a0
+VITE_BUNNY_API_KEY=your_bunny_api_key_here
 ```
 
 #### Supabase Database Configuration
 ```
-SUPABASE_URL=https://pefxegpefsebehtgztrh.supabase.co
-NEXT_PUBLIC_SUPABASE_URL=https://pefxegpefsebehtgztrh.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZnhlZ3BlZnNlYmVodGd6dHJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5MjgxMTcsImV4cCI6MjA2ODUwNDExN30.YBIrtQDzMsmsHsZOCoWDbCVUKnC3Njzep94fZc5MKKA
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlZnhlZ3BlZnNlYmVodGd6dHJoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjkyODExNywiZXhwIjoyMDY4NTA0MTE3fQ.Mnj3uVtBq77wFpZj4wh3bPmb5qKretfPxl-RmtIYhYs
-POSTGRES_URL=postgres://postgres.pefxegpefsebehtgztrh:c7jSn4I29iGaLSAx@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&supa=base-pooler.x
-POSTGRES_PRISMA_URL=postgres://postgres.pefxegpefsebehtgztrh:c7jSn4I29iGaLSAx@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true
-POSTGRES_URL_NON_POOLING=postgres://postgres.pefxegpefsebehtgztrh:c7jSn4I29iGaLSAx@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require
+SUPABASE_URL=https://your_project_id.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://your_project_id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+POSTGRES_URL=postgres://postgres.your_project_id:your_password@your_host:6543/postgres?sslmode=require
+POSTGRES_PRISMA_URL=postgres://postgres.your_project_id:your_password@your_host:6543/postgres?sslmode=require&pgbouncer=true
+POSTGRES_URL_NON_POOLING=postgres://postgres.your_project_id:your_password@your_host:5432/postgres?sslmode=require
 ```
+
+**IMPORTANT:** Never commit actual API keys or credentials to your repository. Use your deployment platform's environment variable system to configure these securely.
 
 ## 🔧 Fixed Issues
 
