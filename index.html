@@ -5,6 +5,15 @@
     <link rel="icon" type="image/png" href="/images/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Elkheta - Video Upload Tool</title>
+    <base href="/" />
+    <script>
+      // Ensure environment variables are available
+      window.__env = {
+        BASE_PATH: "/",
+        NODE_ENV: "%NODE_ENV%",
+        VITE_BUNNY_API_KEY: "%VITE_BUNNY_API_KEY%"
+      };
+    </script>
   </head>
   <body>
     <div id="root"></div>
