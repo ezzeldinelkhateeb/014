@@ -1,6 +1,7 @@
 /**
- * Middleware for API key validation and management
+ * Secure middleware for API key validation and management
  */
+import { validateApiKeyFormat, maskApiKey, sanitizeForLogging } from '../lib/crypto-utils.js';
 
 export function createApiKeyValidationMiddleware() {
   return (req, res, next) => {
@@ -25,6 +26,7 @@ export function createApiKeyValidationMiddleware() {
                    req.headers['authorization']?.replace('Bearer ', '') ||
                    process.env.VITE_BUNNY_API_KEY;
 
+    // Secure logging without exposing sensitive data
     console.log('[API Key Validation] Key sources:', {
       hasAccesskey: !!req.headers['accesskey'],
       hasAccessKey: !!req.headers['AccessKey'],
@@ -32,7 +34,7 @@ export function createApiKeyValidationMiddleware() {
       hasAccessDashCap: !!req.headers['Access-Key'],
       hasAuthorization: !!req.headers['authorization'],
       hasEnvKey: !!process.env.VITE_BUNNY_API_KEY,
-      finalKey: apiKey ? `${apiKey.substring(0, 8)}...` : 'None'
+      finalKey: apiKey ? maskApiKey(apiKey) : 'None'
     });
 
     if (!apiKey) {
@@ -41,7 +43,17 @@ export function createApiKeyValidationMiddleware() {
         error: 'Authentication required',
         message: 'No API key provided in request headers',
         expectedHeaders: ['AccessKey', 'accesskey', 'Access-Key', 'access-key'],
-        receivedHeaders: Object.keys(req.headers)
+        receivedHeaders: sanitizeForLogging(Object.keys(req.headers))
+      });
+    }
+
+    // Validate API key format
+    if (!validateApiKeyFormat(apiKey)) {
+      console.error('[API Key Validation] Invalid API key format detected');
+      return res.status(401).json({
+        error: 'Invalid API key format',
+        message: 'The provided API key does not match the expected Bunny.net format',
+        keyMask: maskApiKey(apiKey)
       });
     }
 
@@ -51,7 +63,7 @@ export function createApiKeyValidationMiddleware() {
     // Set header for proxy forwarding
     req.headers['AccessKey'] = apiKey;
     
-    console.log(`[API Key Validation] ✅ Valid API key found (${apiKey.length} chars)`);
+    console.log(`[API Key Validation] ✅ Valid API key found (${apiKey.length} chars, format: ${maskApiKey(apiKey)})`);
     next();
   };
 }
@@ -63,6 +75,7 @@ export function logApiKeyUsage(req, operation) {
     path: req.path,
     hasApiKey: !!apiKey,
     keyLength: typeof apiKey === 'string' ? apiKey.length : 0,
+    keyMask: typeof apiKey === 'string' ? maskApiKey(apiKey) : 'None',
     timestamp: new Date().toISOString()
   });
 }

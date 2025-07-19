@@ -1,6 +1,7 @@
 import { cache } from '../cache';
 import { dataStorage } from '../data-storage';
 import { BASE_URL, VIDEO_BASE_URL } from './constants';
+import { validateApiKeyFormat, maskApiKey, sanitizeForLogging } from '../crypto-utils';
 
 export interface BunnyResponse<T = any> {
   items?: T[];
@@ -90,13 +91,13 @@ export class HttpClient {
       return cachedDefaultKey;
     }
 
-    console.error('[HttpClient] No API key available. Checked:', {
+    console.error('[HttpClient] No API key available. Checked:', sanitizeForLogging({
       hasAccessToken: !!accessToken,
       hasEnvKey: !!envApiKey,
       hasLibraryId: !!libraryId,
       hasInstanceKey: !!this.apiKey,
       hasCachedDefault: !!cachedDefaultKey
-    });
+    }));
 
     throw new Error('No API key available. Please set VITE_BUNNY_API_KEY environment variable or provide an access token.');
   }
@@ -148,6 +149,12 @@ export class HttpClient {
       
       if (!apiKeyToUse) {
         throw new Error('API key not set');
+      }
+
+      // Validate the API key format before use
+      if (!validateApiKeyFormat(apiKeyToUse)) {
+        console.warn('[HttpClient] API key format validation failed:', maskApiKey(apiKeyToUse));
+        // Don't throw error here, let the API return its own validation error
       }
 
       // Special handling for collection operations
@@ -370,8 +377,8 @@ export class HttpClient {
   }
 
   private shouldUseProxy(path: string): boolean {
-    // Always use proxy in production, or when running on Vercel
-    const isProduction = import.meta.env.PROD;
+    // Always use proxy when running on localhost development environment
+    const isDevelopment = !import.meta.env.PROD || window.location.hostname === 'localhost';
     const isVercel = window.location.hostname.includes('vercel.app') || 
                     window.location.hostname.includes('app.vercel.com') ||
                     import.meta.env.VITE_VERCEL_ENV;
@@ -379,6 +386,8 @@ export class HttpClient {
     // Always use proxy for paths that start with /api/proxy/
     const isProxyPath = path.startsWith('/api/proxy/');
     
-    return isProduction || isVercel || this.shouldUseVideoApi(path) || isProxyPath;
+    // In development, always use proxy to avoid CORS issues
+    // In production or Vercel, use proxy for video API calls or proxy paths
+    return isDevelopment || isVercel || this.shouldUseVideoApi(path) || isProxyPath;
   }
 }
