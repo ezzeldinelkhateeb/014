@@ -12,5 +12,15 @@
         "distDir": "dist"
       }
     }
-  ]
+  ],
+  "env": {
+    "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
+    "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
+  },
+  "build": {
+    "env": {
+      "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
+      "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
+    }
+  }
 }

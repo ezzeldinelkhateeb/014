@@ -16,7 +16,8 @@ export const envConfig = {
 
 // Re-export helper functions for compatibility  
 export const ensureBunnyApiKey = getBunnyApiKey;
-export const getBunnyApiKey = () => env.bunnyApiKey;
+// Note: Removed local redefinition that was shadowing the validated getBunnyApiKey function
+export { getBunnyApiKey };
 export const checkEnvironmentHealth = EnvValidator.validateRequired;
 export const validateEnvConfig = () => {
   const validation = EnvValidator.validateRequired();
