@@ -4,33 +4,6 @@
   "outputDirectory": "dist",
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, AccessKey" }
-      ]
-    }
-  ],
-  "env": {
-    "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
-    "GOOGLE_SHEETS_SPREADSHEET_ID": "@google_sheets_spreadsheet_id",
-    "GOOGLE_SHEETS_CREDENTIALS_JSON": "@google_sheets_credentials_json",
-    "GOOGLE_SHEET_NAME": "@google_sheet_name"
-  }
-}
-  }
-}
       "src": "/api/proxy/base/([^/]+)/([^/]+)",
       "dest": "/api/proxy/base/[...path].js?path=$1/$2"
     },
@@ -52,6 +25,10 @@
     }
   ],
   "env": {
+    "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
+    "GOOGLE_SHEETS_SPREADSHEET_ID": "@google_sheets_spreadsheet_id",
+    "GOOGLE_SHEETS_CREDENTIALS_JSON": "@google_sheets_credentials_json",
+    "GOOGLE_SHEET_NAME": "@google_sheet_name",
     "NODE_ENV": "production"
   },
   "headers": [
