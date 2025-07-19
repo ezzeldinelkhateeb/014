@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "pages/api/**/*.js": {
-      "runtime": "@vercel/node"
-    }
-  },
   "builds": [
     {
       "src": "package.json",
@@ -11,16 +6,20 @@
       "config": {
         "distDir": "dist"
       }
+    },
+    {
+      "src": "pages/api/**/*.js",
+      "use": "@vercel/node"
     }
   ],
-  "env": {
-    "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
-    "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
-  },
-  "build": {
-    "env": {
-      "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
-      "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "http://127.0.0.1:3004/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/$1"
     }
-  }
+  ]
 }
