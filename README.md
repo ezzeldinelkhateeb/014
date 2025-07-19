@@ -14,6 +14,8 @@ git push origin main
 vercel --prod --force
 ```
 
+> **Note:** In `vercel.json`, do not use both `builds` and `functions` properties together. Use the `config` property within the builds section to configure function settings.
+
 ## Deployment URLs
 - **Production**: https://014-ci7fe1z6f-ezzeldinelkhateebs-projects.vercel.app
 - **Inspect**: https://vercel.com/ezzeldinelkhateebs-projects/014/FmkNzmVdXS5YicB7uGibpAFaXW8f
