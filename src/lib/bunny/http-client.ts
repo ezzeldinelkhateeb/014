@@ -376,9 +376,13 @@ export class HttpClient {
                     window.location.hostname.includes('app.vercel.com') ||
                     import.meta.env.VITE_VERCEL_ENV;
     
+    // Detect GitHub Pages hosting - it doesn't support backend APIs
+    const isGitHubPages = window.location.hostname.includes('.github.io');
+    
     // Always use proxy for paths that start with /api/proxy/
     const isProxyPath = path.startsWith('/api/proxy/');
     
-    return isProduction || isVercel || this.shouldUseVideoApi(path) || isProxyPath;
+    // Don't use proxy on GitHub Pages even in production, as it doesn't support backend
+    return (isProduction && !isGitHubPages) || isVercel || this.shouldUseVideoApi(path) || isProxyPath;
   }
 }
