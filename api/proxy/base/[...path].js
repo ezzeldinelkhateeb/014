@@ -19,14 +19,17 @@ export default async function handler(req, res) {
   }
   
   try {
-    const accessKey = req.headers.accesskey || req.headers.AccessKey;
+    // Use environment variable as fallback if no header is provided
+    const accessKey = req.headers.accesskey || 
+                     req.headers.AccessKey || 
+                     process.env.VITE_BUNNY_API_KEY;
     
     if (!accessKey) {
-      console.error('Missing AccessKey header');
+      console.error('Missing AccessKey header and no environment default');
       return res.status(401).json({ error: 'Missing AccessKey header' });
     }
     
-    const bunnyUrl = `https://api.bunnycdn.com/${fullPath}`;
+    const bunnyUrl = `https://api.bunny.net/${fullPath}`;
     console.log('Proxying to:', bunnyUrl);
     console.log('Using API key:', accessKey.substring(0, 8) + '...');
     

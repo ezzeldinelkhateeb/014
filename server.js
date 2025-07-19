@@ -333,6 +333,12 @@ app.post('/api/proxy/video/library/:libraryId/collections', async (req, res) => 
   }
 });
 
+// Import API handlers for direct routing (better than proxy middleware)
+import videolibrary from './api/proxy/base/videolibrary.js';
+
+// Define specific routes before general proxy middleware
+app.all('/api/proxy/base/videolibrary*', videolibrary);
+
 // Apply proxy middleware with enhanced error handling
 app.use('/api/proxy/base', createProxyMiddleware({
   target: 'https://api.bunny.net',
