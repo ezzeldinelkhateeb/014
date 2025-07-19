@@ -19,10 +19,8 @@
   },
   "build": {
     "env": {
-      "VITE_BUN seksualization: [
-        "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
-        "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
-      ]
+      "VITE_BUNNY_API_KEY": "@vite_bunny_api_key",
+      "VITE_ENCRYPTION_KEY": "@vite_encryption_key"
     }
   }
 }
