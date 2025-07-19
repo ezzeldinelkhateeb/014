@@ -8,19 +8,9 @@ import { ViewsService } from './services/views-service';
 import { UploadService } from './services/upload-service'; // Corrected path for UploadService
 import { dataStorage } from '../data-storage';
 import { cache } from '../cache';
+import { getBunnyApiKey, env } from '../env'; // Use centralized env config
 import type { UploadProgress, Collection, Video, Library } from './types'; // Import necessary types
 import type { LibraryData } from '../../types/library-data';
-
-// Declare Vite env types for this file
-declare global {
-  interface ImportMeta {
-    readonly env: ImportMetaEnv;
-  }
-  interface ImportMetaEnv {
-    readonly VITE_BUNNY_API_KEY: string | undefined;
-    [key: string]: string | undefined;
-  }
-}
 
 export class BunnyService {
   private baseUrl = "http://localhost:800";  // Use local proxy instead of direct API
@@ -42,26 +32,37 @@ export class BunnyService {
   private mainApiKey: string;
 
   constructor() {
-    // Only use environment variable, no prompts
-    this.publicApiKey = import.meta.env.VITE_BUNNY_API_KEY || "";
-    this.apiKey = this.publicApiKey;
-
-    if (this.publicApiKey) {
+    // Use centralized environment configuration with proper validation
+    try {
+      this.publicApiKey = getBunnyApiKey();
+      this.apiKey = this.publicApiKey;
       cache.set('default_api_key', this.publicApiKey);
-    } else {
-      console.warn('VITE_BUNNY_API_KEY environment variable is not set');
+      
+      this.httpClient = new HttpClient(this.baseUrl, this.apiKey);
+      this.libraryService = new LibraryService(this.httpClient);
+      this.collectionService = new CollectionService(this.httpClient, this.videoBaseUrl);
+      this.videoService = new VideoService(this.httpClient, this.videoBaseUrl);
+      this.bandwidthService = new BandwidthService(this.httpClient);
+      this.viewsService = new ViewsService(this.httpClient);
+      this.uploadService = new UploadService(this.httpClient, this.videoBaseUrl);
+
+      this.mainApiKey = this.publicApiKey;
+    } catch (error) {
+      console.error('[BunnyService] Failed to initialize with API key:', error);
+      // Set empty values and let the error be handled gracefully
+      this.publicApiKey = "";
+      this.apiKey = "";
+      this.mainApiKey = "";
+      
+      // Still initialize services but they will fail gracefully
+      this.httpClient = new HttpClient(this.baseUrl, this.apiKey);
+      this.libraryService = new LibraryService(this.httpClient);
+      this.collectionService = new CollectionService(this.httpClient, this.videoBaseUrl);
+      this.videoService = new VideoService(this.httpClient, this.videoBaseUrl);
+      this.bandwidthService = new BandwidthService(this.httpClient);
+      this.viewsService = new ViewsService(this.httpClient);
+      this.uploadService = new UploadService(this.httpClient, this.videoBaseUrl);
     }
-
-    // Initialize services with base URLs and API key
-    this.httpClient = new HttpClient(this.baseUrl, this.apiKey);
-    this.libraryService = new LibraryService(this.httpClient);
-    this.collectionService = new CollectionService(this.httpClient, this.videoBaseUrl);
-    this.videoService = new VideoService(this.httpClient, this.videoBaseUrl);
-    this.bandwidthService = new BandwidthService(this.httpClient);
-    this.viewsService = new ViewsService(this.httpClient);
-    this.uploadService = new UploadService(this.httpClient, this.videoBaseUrl);
-
-    this.mainApiKey = this.publicApiKey;
   }
 
   async initialize(): Promise<void> {
