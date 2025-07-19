@@ -44,6 +44,10 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_PATH: /014/
+          VITE_BUNNY_API_KEY: ${{ secrets.VITE_BUNNY_API_KEY }}
+          GOOGLE_SHEETS_CREDENTIALS_JSON: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS_JSON }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ vars.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEET_NAME: ${{ vars.GOOGLE_SHEET_NAME }}
           
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
