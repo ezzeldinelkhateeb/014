@@ -11,28 +11,30 @@ npm run dev
 # Build locally to test
 npm run build
 
-# Deploy to Vercel
+# Deploy to Vercel - use the "--framework=other" flag to avoid Next.js auto-detection
 git add .
 git commit -m "Update API endpoints and configuration"
 git push origin main
-vercel --prod
+vercel --prod --framework=other
 ```
 
 ## API Troubleshooting
 
 If you encounter 404 errors on API endpoints after deployment:
 
-1. **Check API folder structure**: Make sure API endpoints are in the right location:
+1. **Framework Detection**: Use `--framework=other` when deploying to avoid Vercel mistakenly detecting Next.js
+
+2. **Check API folder structure**: Make sure API endpoints are in the right location:
    - For Vercel functions: Use `/api/` directory (not `/pages/api/`)
    - For endpoints defined in `vercel.json`: Check path mappings are correct
 
-2. **Test API locally**: Run `npm run dev` and test endpoints like `/api/auth-check`
+3. **Test API locally**: Run `npm run dev` and test endpoints like `/api/auth-check`
 
-3. **Verify vercel.json**: Ensure routes are correctly mapped and there are no conflicts
+4. **Verify vercel.json**: Ensure routes are correctly mapped and there are no conflicts
 
-4. **Check Vercel logs**: View request logs in the Vercel dashboard for each endpoint
+5. **Check Vercel logs**: View request logs in the Vercel dashboard for each endpoint
 
-5. **Environment variables**: Ensure environment variables are correctly set in Vercel
+6. **Environment variables**: Ensure environment variables are correctly set in Vercel
 
 ## Deployment URLs
 - **Production**: https://014-ci7fe1z6f-ezzeldinelkhateebs-projects.vercel.app
