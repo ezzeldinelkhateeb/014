@@ -51,7 +51,7 @@ class GoogleSheetsService {
         throw new Error('No videos selected for update');
       }
 
-      const response = await fetch(`${this.baseUrl}/update-bunny-embeds`, {
+          const response = await fetch('/api/update-sheet', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

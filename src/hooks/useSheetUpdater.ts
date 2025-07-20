@@ -100,7 +100,7 @@ export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null
         })
       );
 
-      const response = await fetch('/api/sheets/update-bunny-embeds', {
+      const response = await fetch('/api/update-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

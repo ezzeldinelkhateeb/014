@@ -43,7 +43,7 @@ export async function updateSheetForVideo(
       requestBody.sheetConfig = sheetConfig;
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/sheets/update-bunny-embeds`, {
+    const response = await fetch(`${API_BASE_URL}/api/update-sheet`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

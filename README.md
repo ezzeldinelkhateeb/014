@@ -13,7 +13,7 @@ npm run build
 
 # Deploy to Vercel - use updated CLI command
 git add .
-git commit -m "Update API endpoints and configuration"
+git commit -m "Refactor API endpoints and enhance cache management utilities"
 git push origin main
 vercel --prod
 ```

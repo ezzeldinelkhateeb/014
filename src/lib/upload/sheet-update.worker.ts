@@ -1,6 +1,11 @@
 // Worker code must be self-contained and not use TypeScript-specific features
 const workerBlob = new Blob([`
-      // Improved error handling utilities
+      // Improved             console.log(`[Worker] Sending request to: ${origin}/api/update-sheet`);
+            const requestStartTime = Date.now();
+
+            // data should now have a consistent structure from validateResponse
+            const data = await fetchWithRetry(
+              `${origin}/api/update-sheet`,handling utilities
       const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
       // Add proper response validation with more context

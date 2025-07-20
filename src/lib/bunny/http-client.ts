@@ -45,11 +45,17 @@ export class HttpClient {
       return accessToken;
     }
 
-    // Check environment variable first for server-side rendering
+    // Check environment variable first for server-side rendering - prioritize fresh env key
     const envApiKey = (typeof window !== 'undefined' && (window as any).__env?.VITE_BUNNY_API_KEY) || 
                       (typeof process !== 'undefined' && process.env?.VITE_BUNNY_API_KEY);
     
-    // Then try to get the library-specific key from cache
+    // For upload operations, always prefer the environment key to avoid stale cached keys
+    if (envApiKey) {
+      console.log('[HttpClient] Using environment API key');
+      return envApiKey;
+    }
+    
+    // Then try to get the library-specific key from cache (only if no env key)
     if (libraryId) {
       // First check the in-memory map
       const cachedKey = this.libraryApiKeys.get(libraryId);
@@ -91,12 +97,6 @@ export class HttpClient {
     if (cachedDefaultKey) {
       console.log('[HttpClient] Using cached default key');
       return cachedDefaultKey;
-    }
-
-    // Environment key as last resort
-    if (envApiKey) {
-      console.log('[HttpClient] Using environment API key');
-      return envApiKey;
     }
 
     console.error('[HttpClient] No API key available. Checked:', sanitizeForLogging({

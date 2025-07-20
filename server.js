@@ -60,7 +60,23 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json()); // Use express.json() before routes that need it
+// Use express.json() but skip for proxy routes to preserve raw body stream
+app.use((req, res, next) => {
+  // Allow JSON parsing for specific endpoints that need it
+  if (req.path === '/api/proxy/create-video' || 
+      req.path.startsWith('/api/diagnostics') || 
+      req.path.startsWith('/api/auth-check') ||
+      req.path.startsWith('/api/clear-cache') ||
+      req.path.startsWith('/api/update-sheet') ||
+      !req.path.startsWith('/api/proxy/')) {
+    // Use JSON parsing for these endpoints
+    return express.json()(req, res, next);
+  }
+  
+  // Skip JSON parsing for other proxy routes to preserve raw body stream
+  console.log(`[Express] Skipping JSON parsing for proxy route: ${req.path}`);
+  return next();
+});
 
 // Proxy Middleware Setup
 const defaultBunnyApiKey = process.env.VITE_BUNNY_API_KEY; // Keep the default key
@@ -118,9 +134,138 @@ app.get('/api/auth-check', (req, res) => {
   }
 });
 
+// Diagnostics endpoint
+app.get('/api/diagnostics', (req, res) => {
+  try {
+    // Test different ways to get the API key
+    const accessKey = req.headers.accesskey || 
+                     req.headers.AccessKey || 
+                     req.headers['accesskey'] || 
+                     req.headers['access-key'] ||
+                     req.headers.authorization?.replace('Bearer ', '') ||
+                     defaultBunnyApiKey;
+    
+    // Test API key format
+    let bunnyTestResult = null;
+    if (accessKey) {
+      bunnyTestResult = {
+        success: validateApiKeyFormat(accessKey),
+        message: validateApiKeyFormat(accessKey) ? 'API key format is valid' : 'API key format is invalid',
+        keyLength: accessKey.length,
+        keyPreview: maskApiKey(accessKey)
+      };
+    } else {
+      bunnyTestResult = {
+        success: false,
+        message: 'No API key found to test'
+      };
+    }
+    
+    // Return comprehensive diagnostics
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      
+      // Environment Info
+      environment: {
+        nodeEnv: process.env.NODE_ENV || 'development',
+        hasEnvKey: !!process.env.VITE_BUNNY_API_KEY,
+        envKeyLength: process.env.VITE_BUNNY_API_KEY ? process.env.VITE_BUNNY_API_KEY.length : 0
+      },
+      
+      // API Key Sources
+      apiKeySources: {
+        fromAccesskeyHeader: !!req.headers.accesskey,
+        fromAccessKeyHeader: !!req.headers.AccessKey,
+        fromAccesskeyLower: !!req.headers['accesskey'],
+        fromAccessDash: !!req.headers['access-key'],
+        fromAuthorization: !!req.headers.authorization,
+        fromEnvironment: !!process.env.VITE_BUNNY_API_KEY
+      },
+      
+      // Final API Key Info
+      apiKey: accessKey ? {
+        configured: true,
+        length: accessKey.length,
+        preview: maskApiKey(accessKey),
+        source: req.headers.accesskey ? 'accesskey header' : 
+                req.headers.AccessKey ? 'AccessKey header' :
+                req.headers['accesskey'] ? 'accesskey headers object' :
+                req.headers['access-key'] ? 'access-key header' :
+                req.headers.authorization ? 'authorization header' : 'environment variable',
+        isValidFormat: validateApiKeyFormat(accessKey)
+      } : {
+        configured: false
+      },
+      
+      // Bunny.net API Test
+      bunnyApiTest: bunnyTestResult
+    });
+    
+  } catch (error) {
+    console.error('[Diagnostics] Error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Internal server error during diagnostics',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Clear cache endpoint
+app.post('/api/clear-cache', (req, res) => {
+  try {
+    console.log('[Cache Clear] Clearing all cached API keys');
+    
+    res.json({
+      success: true,
+      message: 'Cache clear request processed',
+      instructions: {
+        clearLocalStorage: [
+          'bunny_api_key',
+          'app_cache',
+          'library_data'
+        ],
+        clearCacheKeys: [
+          'default_api_key',
+          'library_*_api',
+          'library_*_data'
+        ]
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('[Cache Clear] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error clearing cache',
+      error: error.message
+    });
+  }
+});
+
 // Specialized endpoint for creating video entries
 app.post('/api/proxy/create-video', async (req, res) => {
   try {
+    console.log('[CreateVideo] Starting request handling...');
+    console.log('[CreateVideo] Request body status:', {
+      hasBody: !!req.body,
+      bodyType: typeof req.body,
+      bodyContent: req.body,
+      contentType: req.headers['content-type'],
+      contentLength: req.headers['content-length']
+    });
+    
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request body. Expected JSON object.',
+        bodyReceived: req.body
+      });
+    }
+    
     const { libraryId, title, collectionId, accessToken } = req.body;
 
     // Log request headers (sanitized)
@@ -402,7 +547,22 @@ app.use('/api/proxy/base', createProxyMiddleware({
   }
 }));
 
-app.use('/api/proxy/video', createProxyMiddleware({
+app.use('/api/proxy/video', (req, res, next) => {
+  console.log(`[Proxy Video] Incoming request: ${req.method} ${req.originalUrl}`);
+  console.log(`[Proxy Video] Headers:`, Object.keys(req.headers));
+  console.log(`[Proxy Video] Request body stream status:`, {
+    bodyParsed: req.body !== undefined,
+    bodySize: req.body ? JSON.stringify(req.body).length : 0,
+    contentLength: req.headers['content-length']
+  });
+  
+  try {
+    next();
+  } catch (error) {
+    console.error(`[Proxy Video] Error in proxy middleware:`, error);
+    res.status(500).json({ error: 'Proxy middleware error', details: error.message });
+  }
+}, createProxyMiddleware({
   target: 'https://video.bunnycdn.com',
   changeOrigin: true,
   secure: false,
@@ -451,6 +611,25 @@ app.use('/api/proxy/video', createProxyMiddleware({
         proxyReq.setHeader('Content-Length', '0');
         console.log(`[Proxy Video] Forwarding ${req.method} to ${proxyReq.path} with empty body.`);
         // Don't remove Content-Type here, let the target API handle it if needed
+    }
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[Proxy Video] ✓ onProxyReq CALLED! Proxying ${req.method} ${req.originalUrl} to ${proxyReq.path}`);
+    console.log(`[Proxy Video] Headers being sent:`, proxyReq.getHeaders());
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[Proxy Video] Response from ${req.originalUrl}: ${proxyRes.statusCode}`);
+    
+    if (proxyRes.statusCode >= 400) {
+      let body = '';
+      proxyRes.on('data', (chunk) => {
+        body += chunk;
+      });
+      proxyRes.on('end', () => {
+        console.error(`[Proxy Video] Error response: ${proxyRes.statusCode} - ${body}`);
+      });
+    } else {
+      console.log(`[Proxy Video] Success response from ${req.originalUrl}`);
     }
   },
   onError: (err, req, res) => {

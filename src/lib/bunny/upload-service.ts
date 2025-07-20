@@ -3,6 +3,7 @@ import type { UploadProgress } from './types';
 import { cache } from '../cache';
 import { VIDEO_BASE_URL } from './constants';
 import { env, getBunnyApiKey } from '../env'; // Use centralized env config
+import { BunnyCacheCleaner } from './cache-cleaner';
 
 interface UploadResponse {
   guid: string;
@@ -18,24 +19,30 @@ export class UploadService {
   private getApiKey(libraryId?: string, accessToken?: string): string {
     // 1. Use provided access token if available
     if (accessToken) {
+      console.log('[UploadService] Using provided access token');
       return accessToken;
     }
     
-    // 2. For library-specific operations, try to get library key
+    // 2. Always use validated environment API key for uploads
+    // This ensures we use a fresh, valid key instead of potentially stale cached keys
+    try {
+      const envKey = getBunnyApiKey();
+      console.log('[UploadService] Using validated environment API key');
+      return envKey;
+    } catch (error) {
+      console.warn('[UploadService] No valid environment API key found:', error.message);
+    }
+    
+    // 3. Only fall back to library-specific cache if environment key is not available
     if (libraryId) {
       const cachedKey = cache.get(`library_${libraryId}_api`);
       if (cachedKey) {
+        console.log(`[UploadService] Falling back to cached library key for ${libraryId}`);
         return cachedKey;
       }
     }
     
-    // 3. Always fall back to environment variable with validation
-    try {
-      return getBunnyApiKey(); // Always validate the API key
-    } catch (error) {
-      console.warn('[UploadService] No valid Bunny.net API key found:', error.message);
-      return '';
-    }
+    throw new Error('No valid API key available for upload. Please check your environment configuration.');
   }
 
   /**
@@ -365,6 +372,10 @@ export class UploadService {
     accessToken?: string,
     signal?: AbortSignal
   ): Promise<{ guid: string; title: string }> {
+    // Clean invalid cached keys before starting upload
+    console.log('[UploadService] Cleaning invalid cached API keys before upload');
+    BunnyCacheCleaner.validateAndCleanCache();
+    
     const apiKey = this.getApiKey(libraryId, accessToken);
     const { guid, title } = await this.createVideoEntry(file.name, libraryId, apiKey, collectionId);
     

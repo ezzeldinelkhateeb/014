@@ -11,6 +11,17 @@ export const createBunnyVideoProxyMiddleware = (options = {}) => {
       return next();
     }
     
+    // Skip if this is a video creation request - let the newer proxy handle it
+    if (req.path.match(/\/api\/proxy\/video\/library\/\d+\/videos$/) && req.method === 'POST') {
+      console.log(`[BunnyMiddleware] Skipping video creation request, letting proxy handle it: ${req.method} ${req.path}`);
+      return next();
+    }
+    
+    // Skip if this is a collections request - let specific handlers handle it
+    if (req.path.includes('/collections')) {
+      return next();
+    }
+    
     // Add CORS headers for preflight requests
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Origin', '*');
