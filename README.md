@@ -11,11 +11,11 @@ npm run dev
 # Build locally to test
 npm run build
 
-# Deploy to Vercel - use the "--framework=other" flag to avoid Next.js auto-detection
+# Deploy to Vercel - use updated CLI command
 git add .
 git commit -m "Update API endpoints and configuration"
 git push origin main
-vercel --prod --framework=other
+vercel --prod
 ```
 
 ## API Troubleshooting

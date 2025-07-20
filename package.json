@@ -11,7 +11,8 @@
     "build:vite": "vite build",
     "build:next": "next build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "deploy": "vercel --prod"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

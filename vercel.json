@@ -1,27 +1,32 @@
 {
   "version": 2,
-  "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "routes": [
-    { 
-      "src": "/api/(.*)", 
-      "dest": "/api/$1" 
+    {
+      "src": "/api/proxy/base/(.*)",
+      "dest": "/api/proxy/base/$1"
+    },
+    {
+      "src": "/api/proxy/video/(.*)",
+      "dest": "/api/proxy/video/$1"
+    },
+    {
+      "src": "/api/sheets/(.*)",
+      "dest": "/api/sheets/$1"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
       "handle": "filesystem"
     },
-    { 
-      "src": "/(.*)", 
-      "dest": "/index.html" 
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
-  "functions": {
-    "api/**/*.js": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
   "env": {
     "NODE_ENV": "production"
   },
