@@ -194,13 +194,17 @@ async function handler(req, res) {
       });
     }
 
-    // Get Google Sheets credentials
-    const credentials = process.env.GOOGLE_SHEETS_CREDENTIALS;
+    // Get Google Sheets credentials - try both possible environment variable names
+    const credentials = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
     if (!credentials) {
-      throw new Error('Google Sheets credentials not found');
+      console.error('[Sheets] Available environment variables:', Object.keys(process.env).filter(key => key.includes('GOOGLE') || key.includes('SHEETS')));
+      throw new Error('Google Sheets credentials not found. Please set GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON in Vercel environment variables.');
     }
 
+    console.log('[Sheets] Found credentials, parsing...');
     const parsedCredentials = JSON.parse(credentials);
+    console.log('[Sheets] Credentials parsed successfully, service account email:', parsedCredentials.client_email);
+    
     const auth = new google.auth.GoogleAuth({
       credentials: parsedCredentials,
       scopes: SCOPES,

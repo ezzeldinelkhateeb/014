@@ -477,9 +477,23 @@ export class UploadService {
     signal?: AbortSignal,
     settings?: UploadSettings
   ): Promise<void> {
+    // Vercel Serverless Function payload limit is 4.5MB
+    const VERCEL_PAYLOAD_LIMIT = 4.5 * 1024 * 1024; // 4.5MB in bytes
+    const useDirectUpload = file.size > VERCEL_PAYLOAD_LIMIT;
+    
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const uploadUrl = `/api/proxy/video/library/${libraryId}/videos/${guid}`;
+      
+      // Choose upload URL based on file size
+      const uploadUrl = useDirectUpload 
+        ? `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}` // Direct to Bunny for large files
+        : `/api/proxy/video/library/${libraryId}/videos/${guid}`; // Via proxy for small files
+
+      if (useDirectUpload) {
+        console.log(`[UploadService-Stream] Large file detected (${(file.size / (1024 * 1024)).toFixed(2)} MB), using direct upload to Bunny.net`);
+      } else {
+        console.log(`[UploadService-Stream] Small file (${(file.size / (1024 * 1024)).toFixed(2)} MB), using proxy upload`);
+      }
 
       xhr.open("PUT", uploadUrl, true);
       xhr.setRequestHeader("AccessKey", apiKey);
