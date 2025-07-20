@@ -39,72 +39,84 @@ export class HttpClient {
    * Get the appropriate API key for a request
    */
   getApiKey(libraryId?: string, accessToken?: string): string {
+    console.log(`[HttpClient] getApiKey called with libraryId: ${libraryId}, hasAccessToken: ${!!accessToken}`);
+    
     // First try the access token if provided
     if (accessToken) {
       console.log('[HttpClient] Using provided access token');
       return accessToken;
     }
 
-    // Check environment variable first for server-side rendering - prioritize fresh env key
-    const envApiKey = (typeof window !== 'undefined' && (window as any).__env?.VITE_BUNNY_API_KEY) || 
-                      (typeof process !== 'undefined' && process.env?.VITE_BUNNY_API_KEY);
-    
-    // For upload operations, always prefer the environment key to avoid stale cached keys
-    if (envApiKey) {
-      console.log('[HttpClient] Using environment API key');
-      return envApiKey;
-    }
-    
-    // Then try to get the library-specific key from cache (only if no env key)
+    // PRIORITIZE library-specific key if libraryId is provided
     if (libraryId) {
+      console.log(`[HttpClient] Looking for library-specific key for library ${libraryId}`);
+      
       // First check the in-memory map
       const cachedKey = this.libraryApiKeys.get(libraryId);
       if (cachedKey) {
-        console.log(`[HttpClient] Using cached library key for ${libraryId}`);
+        console.log(`[HttpClient] ✅ Found cached library key for ${libraryId}: ${cachedKey.substring(0, 8)}...`);
         return cachedKey;
       }
       
-      // Then check the global cache
+      // Then check the global cache for individual library data
       const libraryData = cache.get(`library_${libraryId}_data`);
       if (libraryData?.apiKey) {
         // Store in memory for future use
         this.libraryApiKeys.set(libraryId, libraryData.apiKey);
-        console.log(`[HttpClient] Using library-specific key for ${libraryId}`);
+        console.log(`[HttpClient] ✅ Found library-specific key in cache for ${libraryId}: ${libraryData.apiKey.substring(0, 8)}...`);
         return libraryData.apiKey;
       }
       
       // Try to get from the library data storage
       const allLibraries = cache.get('library_data');
+      console.log(`[HttpClient] Checking library_data cache, found: ${allLibraries ? 'Yes' : 'No'}`);
       if (allLibraries?.libraries) {
-        const library = allLibraries.libraries.find(l => l.id === libraryId);
+        console.log(`[HttpClient] Found ${allLibraries.libraries.length} libraries in cache`);
+        const library = allLibraries.libraries.find(l => 
+          l.id === libraryId || l.id.toString() === libraryId
+        );
         if (library?.apiKey) {
           // Store in memory for future use
           this.libraryApiKeys.set(libraryId, library.apiKey);
-          console.log(`[HttpClient] Using stored library key for ${libraryId}`);
+          console.log(`[HttpClient] ✅ Found stored library key for ${libraryId} (${library.name}): ${library.apiKey.substring(0, 8)}...`);
           return library.apiKey;
+        } else {
+          console.log(`[HttpClient] ❌ Library ${libraryId} found but no apiKey, library:`, library ? library.name : 'not found');
         }
       }
+      
+      console.log(`[HttpClient] ❌ No library-specific key found for ${libraryId}`);
+    }
+
+    // Check environment variable as fallback
+    const envApiKey = (typeof window !== 'undefined' && (window as any).__env?.VITE_BUNNY_API_KEY) || 
+                      (typeof process !== 'undefined' && process.env?.VITE_BUNNY_API_KEY);
+    
+    if (envApiKey) {
+      console.log(`[HttpClient] ⚠️ Using environment API key as fallback: ${envApiKey.substring(0, 8)}...`);
+      return envApiKey;
     }
 
     // Fall back to instance API key
     if (this.apiKey) {
-      console.log('[HttpClient] Using instance API key');
+      console.log(`[HttpClient] ⚠️ Using instance API key as fallback: ${this.apiKey.substring(0, 8)}...`);
       return this.apiKey;
     }
 
     // Check cached default key
     const cachedDefaultKey = cache.get('default_api_key');
     if (cachedDefaultKey) {
-      console.log('[HttpClient] Using cached default key');
+      console.log(`[HttpClient] ⚠️ Using cached default key as fallback: ${cachedDefaultKey.substring(0, 8)}...`);
       return cachedDefaultKey;
     }
 
-    console.error('[HttpClient] No API key available. Checked:', sanitizeForLogging({
+    console.error('[HttpClient] ❌ No API key available anywhere!', sanitizeForLogging({
       hasAccessToken: !!accessToken,
       hasEnvKey: !!envApiKey,
       hasLibraryId: !!libraryId,
       hasInstanceKey: !!this.apiKey,
-      hasCachedDefault: !!cachedDefaultKey
+      hasCachedDefault: !!cachedDefaultKey,
+      libraryDataCacheKeys: Object.keys(cache.get('library_data') || {})
     }));
 
     throw new Error('No API key available. Please set VITE_BUNNY_API_KEY environment variable or provide an access token.');

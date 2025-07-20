@@ -13,8 +13,12 @@ import type { UploadProgress, Collection, Video, Library } from './types'; // Im
 import type { LibraryData } from '../../types/library-data';
 
 export class BunnyService {
-  private baseUrl = "http://localhost:800";  // Use local proxy instead of direct API
-  private videoBaseUrl = "http://localhost:800";  // Use local proxy instead of direct API
+  private baseUrl = import.meta.env.PROD 
+    ? "https://014-ju3s3rfx7-ezzeldinelkhateebs-projects.vercel.app" 
+    : "http://localhost:800";  // Use production URL in production, local proxy in dev
+  private videoBaseUrl = import.meta.env.PROD 
+    ? "https://014-ju3s3rfx7-ezzeldinelkhateebs-projects.vercel.app" 
+    : "http://localhost:800";  // Use production URL in production, local proxy in dev
   private httpClient: HttpClient;
 
   private libraryService: LibraryService;

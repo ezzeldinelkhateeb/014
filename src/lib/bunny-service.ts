@@ -233,9 +233,19 @@ export class BunnyService {
     try {
       // Update main API key
       this.httpClient.setApiKey(mainApiKey);
+      cache.set('default_api_key', mainApiKey);
       
       // Get libraries with their API keys
       const libraries = await this.getLibraries();
+      
+      // Cache library API keys in HttpClient and cache
+      libraries.forEach(lib => {
+        if (lib.apiKey) {
+          this.httpClient.setLibraryApiKey(lib.id, lib.apiKey);
+          cache.set(`library_${lib.id}_data`, lib);
+          cache.set(`library_${lib.id}_api`, lib.apiKey);
+        }
+      });
       
       // Get collections for each library
       const libraryInfos: LibraryInfo[] = await Promise.all(
@@ -294,9 +304,13 @@ export class BunnyService {
         mainApiKey
       };
 
-      // Save to persistent storage
+      // Save to persistent storage AND cache
       console.log("About to save library data");
       await dataStorage.saveLibraryData(data);
+      
+      // Also cache the data for immediate access
+      cache.set('library_data', data);
+      
       console.log("Library data saved successfully");
 
       // Verify the save worked by doing a test read

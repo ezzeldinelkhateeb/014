@@ -2,10 +2,6 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "pages/api/**/*.js",
       "use": "@vercel/node"
     },
@@ -19,22 +15,6 @@
   ],
   "routes": [
     {
-      "src": "/api/auth-check",
-      "dest": "/api/auth-check.js"
-    },
-    {
-      "src": "/api/debug-routes",
-      "dest": "/api/debug-routes.js"
-    },
-    {
-      "src": "/api/sheets/update-bunny-embeds",
-      "dest": "/api/sheets/update-bunny-embeds.js"
-    },
-    {
-      "src": "/api/sheets/update-final-minutes",
-      "dest": "/api/sheets/update-final-minutes.js"
-    },
-    {
       "src": "/api/proxy/create-video",
       "dest": "/pages/api/proxy/create-video.js"
     },
@@ -43,12 +23,20 @@
       "dest": "/pages/api/proxy/base/[...path].js?path=$1"
     },
     {
-      "src": "/api/proxy/video/library/([^/]+)/collections",
-      "dest": "/pages/api/proxy/video/library/[libraryId]/collections.js?libraryId=$1"
-    },
-    {
       "src": "/api/proxy/video/([^/]+.*)",
       "dest": "/pages/api/proxy/video/[...path].js?path=$1"
+    },
+    {
+      "src": "/api/sheets/update-bunny-embeds",
+      "dest": "/pages/api/sheets/update-bunny-embeds.js"
+    },
+    {
+      "src": "/api/update-sheet",
+      "dest": "/pages/api/update-sheet.js"
+    },
+    {
+      "src": "/api/clear-cache",
+      "dest": "/pages/api/clear-cache.js"
     },
     {
       "src": "/(.*)",
