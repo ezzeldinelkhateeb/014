@@ -4,7 +4,7 @@
 export function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, AccessKey, Content-Length, Accept, x-api-key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, AccessKey, Content-Length, Accept, x-api-key, access-key');
 }
 
 export function handleCors(req, res) {
@@ -23,6 +23,7 @@ export function getApiKey(req) {
          req.headers.AccessKey || 
          req.headers['accesskey'] || 
          req.headers['access-key'] ||
+         req.headers['x-api-key'] ||
          req.headers.authorization?.replace('Bearer ', '') ||
          process.env.VITE_BUNNY_API_KEY;
 }

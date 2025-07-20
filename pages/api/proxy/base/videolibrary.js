@@ -1,25 +1,20 @@
+import { setCorsHeaders, handleCors, getApiKey } from '../../../../api/_helpers/cors.js';
+
 export default async function handler(req, res) {
-  console.log('Videolibrary API called:', {
+  console.log('Pages Videolibrary API called:', {
     method: req.method,
     url: req.url,
     query: req.query
   });
 
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, AccessKey');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  // Handle CORS preflight
+  if (handleCors(req, res)) {
+    return; // OPTIONS request, already handled
   }
   
   try {
-    // Use environment variable as fallback if no header is provided
-    const accessKey = req.headers.accesskey || 
-                     req.headers.AccessKey || 
-                     req.headers['accesskey'] || 
-                     process.env.VITE_BUNNY_API_KEY;
+    // Use the helper function to get the API key
+    const accessKey = getApiKey(req);
     
     if (!accessKey) {
       console.error('Missing AccessKey header and no environment default');
@@ -69,6 +64,11 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Videolibrary Proxy error:', error);
     return res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message 
+    });
+  }
+}
       error: 'Internal server error',
       details: error.message 
     });

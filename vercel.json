@@ -2,37 +2,42 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "headers": [
+  "installCommand": "npm install",
+  "routes": [
     {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization,AccessKey,x-api-key" }
-      ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "src": "/api/auth-check",
+      "dest": "/api/auth-check.js"
     },
     {
-      "source": "/(.*)",
-      "destination": "/dist/$1"
-    }
-  ],
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+      "src": "/api/proxy/base/videolibrary",
+      "dest": "/api/proxy/base/videolibrary.js"
     },
     {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
+      "src": "/api/proxy/base/([^/]*)",
+      "dest": "/api/proxy/base/[...path].js?path=$1"
+    },
+    {
+      "src": "/api/proxy/base/([^/]+)/([^/]+)",
+      "dest": "/api/proxy/base/[...path].js?path=$1/$2"
+    },
+    {
+      "src": "/api/proxy/video/library/([^/]+)/collections",
+      "dest": "/api/proxy/video/library/[libraryId]/collections.js?libraryId=$1"
+    },
+    {
+      "src": "/api/proxy/video/([^/]+)/([^/]+)/([^/]+)",
+      "dest": "/api/proxy/video/[...path].js?path=$1/$2/$3"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/$1"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }

@@ -8,19 +8,47 @@ npm run dev
 
 ## Deployment
 ```bash
+# Build locally to test
+npm run build
+
+# Deploy to Vercel
 git add .
-git commit -m "Merge remote changes"
+git commit -m "Update API endpoints and configuration"
 git push origin main
-vercel --prod --force
+vercel --prod
 ```
 
-> **Note:** In `vercel.json`, do not use both `builds` and `functions` properties together. Use the `config` property within the builds section to configure function settings.
+## API Troubleshooting
+
+If you encounter 404 errors on API endpoints after deployment:
+
+1. **Check API folder structure**: Make sure API endpoints are in the right location:
+   - For Vercel functions: Use `/api/` directory (not `/pages/api/`)
+   - For endpoints defined in `vercel.json`: Check path mappings are correct
+
+2. **Test API locally**: Run `npm run dev` and test endpoints like `/api/auth-check`
+
+3. **Verify vercel.json**: Ensure routes are correctly mapped and there are no conflicts
+
+4. **Check Vercel logs**: View request logs in the Vercel dashboard for each endpoint
+
+5. **Environment variables**: Ensure environment variables are correctly set in Vercel
 
 ## Deployment URLs
 - **Production**: https://014-ci7fe1z6f-ezzeldinelkhateebs-projects.vercel.app
 - **Inspect**: https://vercel.com/ezzeldinelkhateebs-projects/014/FmkNzmVdXS5YicB7uGibpAFaXW8f
 
 ## Project Structure
+
+### API Structure
+- `/api/*`: Vercel serverless functions (deployed automatically)
+- `/pages/api/*`: Next.js API routes (requires manual routing in vercel.json)
+
+### Key API Endpoints
+- `/api/auth-check`: Verify authentication status and API keys
+- `/api/proxy/base/videolibrary`: Get library list from Bunny.net
+- `/api/proxy/video/library/[libraryId]/collections`: Get collections for a library
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
