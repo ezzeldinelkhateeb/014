@@ -56,15 +56,31 @@ export function decryptApiKey(encryptedKey: string): string {
 }
 
 /**
- * Validates an API key format (Bunny.net API keys are typically 36 characters)
+ * Validates an API key format (Bunny.net API keys can be various formats)
  */
 export function validateApiKeyFormat(apiKey: string): boolean {
   if (!apiKey || typeof apiKey !== 'string') return false;
   
-  // Bunny.net API keys are typically 36 characters long and contain alphanumeric characters and hyphens
-  const bunnyKeyPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+  // Check minimum/maximum length constraints
+  if (apiKey.length < 20 || apiKey.length > 100) return false;
   
-  return bunnyKeyPattern.test(apiKey) && apiKey.length === 36;
+  // Bunny.net API keys can be:
+  // 1. UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars)
+  // 2. Long alphanumeric string (40+ chars)
+  // 3. Mixed format with hyphens
+  
+  // UUID pattern
+  const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+  if (uuidPattern.test(apiKey)) return true;
+  
+  // Long alphanumeric pattern (with optional hyphens)
+  const longKeyPattern = /^[a-zA-Z0-9\-_]{20,100}$/;
+  if (longKeyPattern.test(apiKey)) return true;
+  
+  // If it doesn't match known patterns but has reasonable length and chars, accept it
+  // This is more permissive to handle various Bunny.net key formats
+  const generalPattern = /^[a-zA-Z0-9\-_\.]{20,100}$/;
+  return generalPattern.test(apiKey);
 }
 
 /**

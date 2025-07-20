@@ -110,18 +110,19 @@ export class EnvValidator {
       };
     }
     
-    // Bunny.net API keys are typically 20-50 characters, alphanumeric with hyphens
-    if (apiKey.length < 20 || apiKey.length > 50) {
+    // Bunny.net API keys can be various formats - be more flexible
+    if (apiKey.length < 20 || apiKey.length > 100) {
       return {
         isValid: false,
-        error: `VITE_BUNNY_API_KEY length (${apiKey.length}) is outside expected range (20-50 characters).`
+        error: `VITE_BUNNY_API_KEY length (${apiKey.length}) is outside expected range (20-100 characters).`
       };
     }
     
-    if (!/^[a-zA-Z0-9\-]+$/.test(apiKey)) {
+    // Allow more characters for different Bunny.net API key formats
+    if (!/^[a-zA-Z0-9\-_\.]+$/.test(apiKey)) {
       return {
         isValid: false,
-        error: 'VITE_BUNNY_API_KEY contains invalid characters. Only alphanumeric characters and hyphens are allowed.'
+        error: 'VITE_BUNNY_API_KEY contains invalid characters. Only alphanumeric characters, hyphens, underscores, and dots are allowed.'
       };
     }
     

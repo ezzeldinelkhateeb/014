@@ -6,17 +6,6 @@ import { cache } from '../../cache';
 import * as tus from 'tus-js-client';
 import CryptoJS from 'crypto-js';
 
-// Declare Vite env types for this file
-declare global {
-  interface ImportMeta {
-    readonly env: ImportMetaEnv;
-  }
-  interface ImportMetaEnv {
-    readonly VITE_BUNNY_API_KEY: string | undefined;
-    [key: string]: string | undefined;
-  }
-}
-
 interface Video {
   guid: string;
   title: string;
@@ -173,9 +162,17 @@ export class UploadService {
       sanitizedTitle,
       libraryId,
       collectionId,
-      apiKeyLength: apiKey?.length
+      apiKeyLength: apiKey?.length,
+      apiKeyMask: apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'none'
     };
     console.log(`[UploadService] Creating video entry: ${JSON.stringify(logData)}`);
+
+    // Validate API key format before proceeding
+    if (!apiKey || apiKey.length < 20) {
+      const error = new Error(`Invalid API key: ${apiKey ? 'too short' : 'missing'}`);
+      console.error('[UploadService] API key validation failed:', error.message);
+      throw error;
+    }
 
     // Resolve collection name to GUID if needed
     let resolvedCollectionId = collectionId;
@@ -288,38 +285,57 @@ export class UploadService {
       accessToken: apiKey
     };
 
-    const response = await this.httpClient.fetchWithError<Video>(
-      '/api/proxy/create-video',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      }
-    );
-
-    if (!response?.guid) {
-      throw new Error('Failed to create video entry: No GUID in response');
-    }
-
-    // Log the complete response for debugging
-    console.log('[UploadService] Video entry created:', {
-      guid: response.guid,
-      title: response.title,
-      collection: response.collectionId || 'none',
-      status: this.getStatusName(response.status),
-      metadata: {
-        width: response.width,
-        height: response.height,
-        length: response.length,
-        framerate: response.framerate,
-        dateUploaded: response.dateUploaded,
-        views: response.views,
-        storageSize: response.storageSize,
-        encodeProgress: response.encodeProgress
-      }
+    console.log('[UploadService] Calling /api/proxy/create-video with data:', {
+      ...data,
+      accessToken: data.accessToken ? `${data.accessToken.substring(0, 4)}...${data.accessToken.substring(data.accessToken.length - 4)}` : 'none'
     });
 
-    return { guid: response.guid, title: sanitizedTitle };
+    try {
+      const response = await this.httpClient.fetchWithError<Video>(
+        '/api/proxy/create-video',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        }
+      );
+
+      if (!response?.guid) {
+        throw new Error('Failed to create video entry: No GUID in response');
+      }
+
+      // Log the complete response for debugging
+      console.log('[UploadService] Video entry created successfully:', {
+        guid: response.guid,
+        title: response.title,
+        collection: response.collectionId || 'none',
+        status: this.getStatusName(response.status),
+        metadata: {
+          width: response.width,
+          height: response.height,
+          length: response.length,
+          framerate: response.framerate,
+          dateUploaded: response.dateUploaded,
+          views: response.views,
+          storageSize: response.storageSize,
+          encodeProgress: response.encodeProgress
+        }
+      });
+
+      return { guid: response.guid, title: sanitizedTitle };
+    } catch (error) {
+      console.error('[UploadService] Failed to create video entry:', {
+        error: error.message,
+        status: error.status,
+        response: error.response,
+        apiKeyValid: apiKey && apiKey.length >= 20,
+        libraryId,
+        title: sanitizedTitle
+      });
+      
+      // Re-throw with more context
+      throw new Error(`Video creation failed: ${error.message}`);
+    }
   }
 
   /**
