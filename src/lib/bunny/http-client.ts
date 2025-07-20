@@ -155,12 +155,25 @@ export class HttpClient {
       // Determine if this is a video/collection request
       const isVideoApi = this.shouldUseVideoApi(path);
       
-      // Extract library ID from path for video/collection requests
+      // Extract library ID from path for video/collection requests OR from body for create-video
       let libraryId: string | undefined;
       if (isVideoApi) {
         const match = path.match(/\/library\/(\d+)/);
         if (match) {
           libraryId = match[1];
+        }
+      }
+
+      // Special case: For create-video endpoint, extract library ID from body
+      if (path === '/api/proxy/create-video' && typeof options.body === 'string') {
+        try {
+          const bodyData = JSON.parse(options.body);
+          if (bodyData.libraryId) {
+            libraryId = bodyData.libraryId;
+            console.log(`[HttpClient] Extracted library ID from create-video body: ${libraryId}`);
+          }
+        } catch (error) {
+          console.warn('[HttpClient] Failed to parse create-video body for library ID:', error);
         }
       }
 
