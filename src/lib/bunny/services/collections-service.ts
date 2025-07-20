@@ -42,7 +42,9 @@ export class CollectionService {
       while (hasMorePages) {
         const response = await this.httpClient.fetchWithError<BunnyResponse<CollectionResponse>>(
           `/library/${libraryId}/collections?page=${currentPage}&itemsPerPage=${itemsPerPage}&orderBy=date`,
-          { method: "GET" }
+          { 
+            method: "GET"
+          }
         );
 
         const collections = (response.items || []).map((col): Collection => ({

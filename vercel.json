@@ -1,36 +1,70 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
+  "builds": [
+    {
+      "src": "pages/api/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
   "routes": [
     {
       "src": "/api/auth-check",
-      "dest": "/api/auth-check.js"
+      "dest": "/pages/api/auth-check.js"
+    },
+    {
+      "src": "/api/diagnostics",
+      "dest": "/pages/api/diagnostics.js"
+    },
+    {
+      "src": "/api/test-endpoints",
+      "dest": "/pages/api/test-endpoints.js"
+    },
+    {
+      "src": "/api/update-sheet",
+      "dest": "/pages/api/update-sheet.js"
+    },
+    {
+      "src": "/api/sheets/update-bunny-embeds",
+      "dest": "/pages/api/sheets/update-bunny-embeds.js"
+    },
+    {
+      "src": "/api/proxy/create-video",
+      "dest": "/pages/api/proxy/create-video.js"
     },
     {
       "src": "/api/proxy/base/videolibrary",
-      "dest": "/api/proxy/base/videolibrary.js"
+      "dest": "/pages/api/proxy/base/videolibrary.js"
     },
     {
       "src": "/api/proxy/base/([^/]+)",
-      "dest": "/api/proxy/base/[...path].js?path=$1"
+      "dest": "/pages/api/proxy/base/[...path].js?path=$1"
     },
     {
       "src": "/api/proxy/base/([^/]+)/([^/]+)",
-      "dest": "/api/proxy/base/[...path].js?path=$1/$2"
+      "dest": "/pages/api/proxy/base/[...path].js?path=$1/$2"
     },
     {
       "src": "/api/proxy/video/library/([^/]+)/collections",
-      "dest": "/api/proxy/video/library/[libraryId]/collections.js?libraryId=$1"
+      "dest": "/pages/api/proxy/video/library/[libraryId]/collections.js?libraryId=$1"
     },
     {
       "src": "/api/proxy/video/([^/]+)/([^/]+)/([^/]+)",
-      "dest": "/api/proxy/video/[...path].js?path=$1/$2/$3"
+      "dest": "/pages/api/proxy/video/[...path].js?path=$1/$2/$3"
     },
     {
       "src": "/api/(.*)",
-      "dest": "/api/$1.js"
+      "dest": "/pages/api/$1.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/$1"
     }
   ],
   "env": {

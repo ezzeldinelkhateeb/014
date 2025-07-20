@@ -41,22 +41,20 @@ export class HttpClient {
   getApiKey(libraryId?: string, accessToken?: string): string {
     // First try the access token if provided
     if (accessToken) {
+      console.log('[HttpClient] Using provided access token');
       return accessToken;
     }
 
-    // Check environment variable first as it's most reliable
+    // Check environment variable first for server-side rendering
     const envApiKey = (typeof window !== 'undefined' && (window as any).__env?.VITE_BUNNY_API_KEY) || 
                       (typeof process !== 'undefined' && process.env?.VITE_BUNNY_API_KEY);
     
-    if (envApiKey) {
-      return envApiKey;
-    }
-
     // Then try to get the library-specific key from cache
     if (libraryId) {
       // First check the in-memory map
       const cachedKey = this.libraryApiKeys.get(libraryId);
       if (cachedKey) {
+        console.log(`[HttpClient] Using cached library key for ${libraryId}`);
         return cachedKey;
       }
       
@@ -65,6 +63,7 @@ export class HttpClient {
       if (libraryData?.apiKey) {
         // Store in memory for future use
         this.libraryApiKeys.set(libraryId, libraryData.apiKey);
+        console.log(`[HttpClient] Using library-specific key for ${libraryId}`);
         return libraryData.apiKey;
       }
       
@@ -75,6 +74,7 @@ export class HttpClient {
         if (library?.apiKey) {
           // Store in memory for future use
           this.libraryApiKeys.set(libraryId, library.apiKey);
+          console.log(`[HttpClient] Using stored library key for ${libraryId}`);
           return library.apiKey;
         }
       }
@@ -82,13 +82,21 @@ export class HttpClient {
 
     // Fall back to instance API key
     if (this.apiKey) {
+      console.log('[HttpClient] Using instance API key');
       return this.apiKey;
     }
 
     // Check cached default key
     const cachedDefaultKey = cache.get('default_api_key');
     if (cachedDefaultKey) {
+      console.log('[HttpClient] Using cached default key');
       return cachedDefaultKey;
+    }
+
+    // Environment key as last resort
+    if (envApiKey) {
+      console.log('[HttpClient] Using environment API key');
+      return envApiKey;
     }
 
     console.error('[HttpClient] No API key available. Checked:', sanitizeForLogging({
@@ -148,7 +156,7 @@ export class HttpClient {
       const apiKeyToUse = this.getApiKey(libraryId);
       
       if (!apiKeyToUse) {
-        throw new Error('API key not set');
+        throw new Error('API key not set. Please provide API key in headers or environment variable.');
       }
 
       // Validate the API key format before use
@@ -159,16 +167,20 @@ export class HttpClient {
 
       // Special handling for collection operations
       if (path.includes('/collections')) {
-        console.log(`[HttpClient] Collection operation: ${options.method} ${path}`);
+        console.log(`[HttpClient] Collection operation: ${options.method || 'GET'} ${path}`);
         
         // Ensure the path is routed through the video proxy
         const collectionPath = path.startsWith('/api/proxy/') ?
           path : `/api/proxy/video${this.cleanPath(path)}`;
         const finalUrl = `${window.location.origin}${collectionPath}`;
         
-        // Prepare headers
+        console.log(`[HttpClient] Making collection request to: ${finalUrl}`);
+        console.log(`[HttpClient] Using API key: ${maskApiKey(apiKeyToUse)}`);
+        
+        // Prepare headers with proper AccessKey
         const headers = new Headers(options.headers || {});
         headers.set('AccessKey', apiKeyToUse);
+        headers.set('accesskey', apiKeyToUse); // Also set lowercase for compatibility
         headers.set('Content-Type', 'application/json');
         headers.set('Accept', 'application/json');
         
@@ -190,7 +202,18 @@ export class HttpClient {
             statusText: response.statusText,
             response: errorText
           });
-          throw new Error(`Collection request failed: ${response.status} ${errorText}`);
+          
+          // Enhanced error handling
+          let errorMessage = `Collection request failed: ${response.status}`;
+          if (response.status === 401) {
+            errorMessage += ' - Authentication failed. Check API key.';
+          } else if (response.status === 404) {
+            errorMessage += ' - Collection or library not found.';
+          } else if (response.status === 429) {
+            errorMessage += ' - Rate limit exceeded. Please try again later.';
+          }
+          
+          throw new Error(`${errorMessage}\nDetails: ${errorText}`);
         }
 
         const responseText = await response.text();
@@ -216,22 +239,40 @@ export class HttpClient {
           bodyLength: typeof options.body === 'string' ? options.body.length : 'unknown'
         });
         
+        // Parse the body to add the API key
+        let requestBody;
+        if (typeof options.body === 'string') {
+          try {
+            requestBody = JSON.parse(options.body);
+            // Add the API key to the body
+            requestBody.accessToken = apiKeyToUse;
+          } catch (e) {
+            console.error('[HttpClient] Failed to parse request body:', e);
+            requestBody = { accessToken: apiKeyToUse };
+          }
+        } else {
+          requestBody = { accessToken: apiKeyToUse };
+        }
+        
         // Prepare headers
         const headers = new Headers(options.headers || {});
         headers.set('Content-Type', 'application/json');
+        headers.set('AccessKey', apiKeyToUse);
+        headers.set('accesskey', apiKeyToUse);
         
         // Log the request we're about to make
         console.log('[HttpClient] Sending create-video request:', {
           url: `${window.location.origin}${path}`,
           method: options.method,
           headers: Object.fromEntries(headers.entries()),
-          body: typeof options.body === 'string' ? JSON.parse(options.body) : null
+          body: requestBody
         });
         
         // Make the request to our local proxy
         const response = await fetch(`${window.location.origin}${path}`, {
           ...options,
           headers,
+          body: JSON.stringify(requestBody),
           signal: options.signal || AbortSignal.timeout(180000) // 3 minute timeout
         });
 
@@ -252,7 +293,20 @@ export class HttpClient {
             headers: Object.fromEntries(response.headers.entries()),
             response: responseText
           });
-          throw new Error(`Request failed: ${response.status} ${responseText}`);
+          
+          // Enhanced error handling for video creation
+          let errorMessage = `Video creation failed: ${response.status}`;
+          if (response.status === 401) {
+            errorMessage += ' - Authentication failed. Check API key for the library.';
+          } else if (response.status === 403) {
+            errorMessage += ' - Access forbidden. Check library permissions.';
+          } else if (response.status === 400) {
+            errorMessage += ' - Bad request. Check video title and library ID.';
+          } else if (response.status === 429) {
+            errorMessage += ' - Rate limit exceeded. Please try again later.';
+          }
+          
+          throw new Error(`${errorMessage}\nDetails: ${responseText}`);
         }
 
         try {
@@ -289,10 +343,20 @@ export class HttpClient {
           console.log(`[HttpClient] Using proxy: ${proxyPath}${cleanPath}`);
         }
         
-        // Prepare headers
+        // Prepare headers with proper API key transmission
         const headers = new Headers(options.headers || {});
         headers.set('AccessKey', apiKeyToUse);
+        headers.set('accesskey', apiKeyToUse); // Also set lowercase for compatibility
+        headers.set('Content-Type', 'application/json');
+        headers.set('Accept', 'application/json');
         headers.set('Connection', 'keep-alive');
+        
+        console.log(`[HttpClient] Proxy headers:`, {
+          'AccessKey': `${apiKeyToUse.substring(0, 8)}...`,
+          'accesskey': `${apiKeyToUse.substring(0, 8)}...`,
+          'Content-Type': headers.get('Content-Type'),
+          'Accept': headers.get('Accept')
+        });
         
         // Make the request through our proxy
         const response = await fetch(finalUrl, {

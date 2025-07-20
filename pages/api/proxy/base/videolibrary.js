@@ -13,13 +13,26 @@ export default async function handler(req, res) {
   }
   
   try {
-    // Use the helper function to get the API key
-    const accessKey = getApiKey(req);
+    // Get API key from request headers first, then fallback to environment
+    const accessKey = req.headers.accesskey || 
+                     req.headers.AccessKey || 
+                     req.headers['accesskey'] || 
+                     req.headers['access-key'] ||
+                     req.headers.authorization?.replace('Bearer ', '') ||
+                     process.env.VITE_BUNNY_API_KEY;
     
     if (!accessKey) {
       console.error('Missing AccessKey header and no environment default');
       return res.status(401).json({ error: 'Missing AccessKey header' });
     }
+    
+    console.log('Using API key from:', {
+      fromAccessKey: !!req.headers.accesskey,
+      fromAccessKeyHeader: !!req.headers.AccessKey,
+      fromAuth: !!req.headers.authorization,
+      fromEnv: !!process.env.VITE_BUNNY_API_KEY,
+      keyLength: accessKey.length
+    });
     
     // Build query string
     const queryParams = new URLSearchParams();
@@ -64,11 +77,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Videolibrary Proxy error:', error);
     return res.status(500).json({ 
-      error: 'Internal server error',
-      details: error.message 
-    });
-  }
-}
       error: 'Internal server error',
       details: error.message 
     });

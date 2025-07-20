@@ -22,10 +22,7 @@ export class VideoService {
       const response = await this.httpClient.fetchWithError(
         url,
         { 
-          method: "GET",
-          headers: {
-            'Accept': 'application/json'
-          }
+          method: "GET"
         }
       );
 

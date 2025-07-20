@@ -32,60 +32,74 @@ export class BunnyService {
   private mainApiKey: string;
 
   constructor() {
-    // Use centralized environment configuration with proper validation
+    // Try to use environment configuration but don't fail if not available
     try {
       this.publicApiKey = getBunnyApiKey();
       this.apiKey = this.publicApiKey;
-      cache.set('default_api_key', this.publicApiKey);
-      
-      this.httpClient = new HttpClient(this.baseUrl, this.apiKey);
-      this.libraryService = new LibraryService(this.httpClient);
-      this.collectionService = new CollectionService(this.httpClient, this.videoBaseUrl);
-      this.videoService = new VideoService(this.httpClient, this.videoBaseUrl);
-      this.bandwidthService = new BandwidthService(this.httpClient);
-      this.viewsService = new ViewsService(this.httpClient);
-      this.uploadService = new UploadService(this.httpClient, this.videoBaseUrl);
-
       this.mainApiKey = this.publicApiKey;
+      cache.set('default_api_key', this.publicApiKey);
+      console.log('[BunnyService] Initialized with environment API key');
     } catch (error) {
-      console.error('[BunnyService] Failed to initialize with API key:', error);
-      // Set empty values and let the error be handled gracefully
+      console.warn('[BunnyService] No environment API key found, will use library-specific keys:', error.message);
+      // Set empty values and rely on library-specific keys
       this.publicApiKey = "";
       this.apiKey = "";
       this.mainApiKey = "";
-      
-      // Still initialize services but they will fail gracefully
-      this.httpClient = new HttpClient(this.baseUrl, this.apiKey);
-      this.libraryService = new LibraryService(this.httpClient);
-      this.collectionService = new CollectionService(this.httpClient, this.videoBaseUrl);
-      this.videoService = new VideoService(this.httpClient, this.videoBaseUrl);
-      this.bandwidthService = new BandwidthService(this.httpClient);
-      this.viewsService = new ViewsService(this.httpClient);
-      this.uploadService = new UploadService(this.httpClient, this.videoBaseUrl);
     }
+    
+    // Initialize HTTP client and services regardless of API key availability
+    this.httpClient = new HttpClient(this.apiKey || undefined);
+    this.libraryService = new LibraryService(this.httpClient);
+    this.collectionService = new CollectionService(this.httpClient, this.videoBaseUrl);
+    this.videoService = new VideoService(this.httpClient, this.videoBaseUrl);
+    this.bandwidthService = new BandwidthService(this.httpClient);
+    this.viewsService = new ViewsService(this.httpClient);
+    this.uploadService = new UploadService(this.httpClient, this.videoBaseUrl);
   }
 
   async initialize(): Promise<void> {
     try {
       const savedData = await dataStorage.getLibraryData();
       if (savedData) {
-        this.setLibraryApiKey('default', savedData.mainApiKey);
+        console.log('[BunnyService] Loading saved library data');
+        // Set main API key if available
+        if (savedData.mainApiKey) {
+          this.mainApiKey = savedData.mainApiKey;
+          this.httpClient.setApiKey(savedData.mainApiKey);
+          cache.set('default_api_key', savedData.mainApiKey);
+        }
+        
+        // Store library-specific API keys
         savedData.libraries.forEach(lib => {
           if (lib.apiKey) {
-            cache.set(`library_${lib.id}_api`, lib.apiKey);
+            this.httpClient.setLibraryApiKey(lib.id, lib.apiKey);
+            cache.set(`library_${lib.id}_data`, lib);
+            console.log(`[BunnyService] Stored API key for library ${lib.id}`);
           }
         });
         this.initialized = true;
         return;
       }
 
+      console.log('[BunnyService] No saved data, initializing from API');
       const data = await this.initializeFromAPI();
-      this.setLibraryApiKey('default', data.mainApiKey);
+      
+      // Set main API key if available
+      if (data.mainApiKey) {
+        this.mainApiKey = data.mainApiKey;
+        this.httpClient.setApiKey(data.mainApiKey);
+        cache.set('default_api_key', data.mainApiKey);
+      }
+      
+      // Store library-specific API keys
       data.libraries.forEach(lib => {
         if (lib.apiKey) {
-          cache.set(`library_${lib.id}_api`, lib.apiKey);
+          this.httpClient.setLibraryApiKey(lib.id, lib.apiKey);
+          cache.set(`library_${lib.id}_data`, lib);
+          console.log(`[BunnyService] Stored API key for library ${lib.id}`);
         }
       });
+      
       this.initialized = true;
     } catch (error) {
       console.error('Error initializing BunnyService:', error);
@@ -125,6 +139,11 @@ export class BunnyService {
       } else {
         // Set the library-specific key in HttpClient
         this.httpClient.setLibraryApiKey(libraryId, apiKey);
+        cache.set(`library_${libraryId}_data`, { 
+          id: libraryId, 
+          apiKey: apiKey 
+        });
+        console.log(`[BunnyService] Set API key for library ${libraryId}`);
       }
     }
   }
