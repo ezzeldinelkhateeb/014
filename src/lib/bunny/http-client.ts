@@ -251,13 +251,25 @@ export class HttpClient {
           bodyLength: typeof options.body === 'string' ? options.body.length : 'unknown'
         });
         
-        // Parse the body to add the API key
+        // Parse the body to get library ID and set the correct API key
         let requestBody;
+        let targetLibraryId: string | undefined;
+        
         if (typeof options.body === 'string') {
           try {
             requestBody = JSON.parse(options.body);
-            // Add the API key to the body
-            requestBody.accessToken = apiKeyToUse;
+            targetLibraryId = requestBody.libraryId;
+            console.log(`[HttpClient] Found library ID in create-video body: ${targetLibraryId}`);
+            
+            // Get the correct API key for this library
+            if (targetLibraryId) {
+              const librarySpecificKey = this.getApiKey(targetLibraryId);
+              requestBody.accessToken = librarySpecificKey;
+              console.log(`[HttpClient] Using library-specific key for ${targetLibraryId}: ${librarySpecificKey.substring(0, 8)}...`);
+            } else {
+              requestBody.accessToken = apiKeyToUse;
+              console.log(`[HttpClient] No library ID found, using fallback key: ${apiKeyToUse.substring(0, 8)}...`);
+            }
           } catch (e) {
             console.error('[HttpClient] Failed to parse request body:', e);
             requestBody = { accessToken: apiKeyToUse };
@@ -269,8 +281,8 @@ export class HttpClient {
         // Prepare headers
         const headers = new Headers(options.headers || {});
         headers.set('Content-Type', 'application/json');
-        headers.set('AccessKey', apiKeyToUse);
-        headers.set('accesskey', apiKeyToUse);
+        headers.set('AccessKey', requestBody.accessToken);
+        headers.set('accesskey', requestBody.accessToken);
         
         // Log the request we're about to make
         console.log('[HttpClient] Sending create-video request:', {
