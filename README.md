@@ -11,9 +11,9 @@ npm run dev
 # Build locally to test
 npm run build
 
-# Deploy to Vercel - use updated CLI command
+# Deploy to Vercel - optimized for Hobby plan (under 12 functions limit)
 git add .
-git commit -m "Refactor API endpoints and enhance cache management utilities"
+git commit -m "Optimize API structure for Vercel Hobby plan - consolidate to 8 functions"
 git push origin main
 vercel --prod
 ```

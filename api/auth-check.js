@@ -1,7 +1,7 @@
 export default function handler(req, res) {
   // Allow CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, AccessKey, x-api-key');
   
   if (req.method === 'OPTIONS') {
@@ -17,7 +17,30 @@ export default function handler(req, res) {
                      req.headers.authorization?.replace('Bearer ', '') ||
                      process.env.VITE_BUNNY_API_KEY;
     
-    // Return basic auth check status
+    // Handle cache clearing for POST requests
+    if (req.method === 'POST') {
+      console.log('[Cache Clear] Clearing all cached API keys');
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Cache clear request processed',
+        instructions: {
+          clearLocalStorage: [
+            'bunny_api_key',
+            'app_cache',
+            'library_data'
+          ],
+          clearCacheKeys: [
+            'default_api_key',
+            'library_*_api',
+            'library_*_data'
+          ]
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Return basic auth check status for GET requests
     res.status(200).json({
       status: 'ok',
       timestamp: new Date().toISOString(),
