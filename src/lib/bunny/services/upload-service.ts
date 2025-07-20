@@ -291,7 +291,7 @@ export class UploadService {
     });
 
     try {
-      const response = await this.httpClient.fetchWithError<Video>(
+      const response = await this.httpClient.fetchWithError<any>(
         '/api/proxy/create-video',
         {
           method: 'POST',
@@ -300,29 +300,56 @@ export class UploadService {
         }
       );
 
-      if (!response?.guid) {
+      // Debug: log the exact response structure
+      console.log('[UploadService] Create video response debug:', {
+        hasResponse: !!response,
+        responseKeys: response ? Object.keys(response) : [],
+        hasVideo: !!response?.video,
+        videoKeys: response?.video ? Object.keys(response.video) : [],
+        hasVideoGuid: !!response?.video?.guid,
+        hasDirectGuid: !!response?.guid,
+        videoGuidValue: response?.video?.guid,
+        directGuidValue: response?.guid
+      });
+
+      // Handle different response formats
+      let video: Video;
+      let guid: string;
+      
+      if (response && response.video && response.video.guid) {
+        // New format: { success: true, video: { guid: "...", ... } }
+        video = response.video;
+        guid = response.video.guid;
+        console.log('[UploadService] Using new format with video.guid:', guid);
+      } else if (response && response.guid) {
+        // Old format: { guid: "...", ... }
+        video = response;
+        guid = response.guid;
+        console.log('[UploadService] Using old format with direct guid:', guid);
+      } else {
+        console.error('[UploadService] No GUID found in response:', JSON.stringify(response, null, 2));
         throw new Error('Failed to create video entry: No GUID in response');
       }
 
       // Log the complete response for debugging
       console.log('[UploadService] Video entry created successfully:', {
-        guid: response.guid,
-        title: response.title,
-        collection: response.collectionId || 'none',
-        status: this.getStatusName(response.status),
+        guid: guid,
+        title: video.title,
+        collection: video.collectionId || 'none',
+        status: this.getStatusName(video.status),
         metadata: {
-          width: response.width,
-          height: response.height,
-          length: response.length,
-          framerate: response.framerate,
-          dateUploaded: response.dateUploaded,
-          views: response.views,
-          storageSize: response.storageSize,
-          encodeProgress: response.encodeProgress
+          width: video.width,
+          height: video.height,
+          length: video.length,
+          framerate: video.framerate,
+          dateUploaded: video.dateUploaded,
+          views: video.views,
+          storageSize: video.storageSize,
+          encodeProgress: video.encodeProgress
         }
       });
 
-      return { guid: response.guid, title: sanitizedTitle };
+      return { guid: guid, title: sanitizedTitle };
     } catch (error) {
       console.error('[UploadService] Failed to create video entry:', {
         error: error.message,
@@ -622,15 +649,18 @@ export class UploadService {
       let allVideos: Video[] = [];
       let currentPage = 1;
       const itemsPerPage = 100;
+      const maxPages = 5; // Limit to first 5 pages (500 videos) to prevent infinite loops
       let hasMoreItems = true;
 
       // Get video metadata
       const videoDuration = await this.getVideoDuration(file);
       const videoTitle = this.sanitizeTitle(file.name);
-      console.log(`[UploadService] Checking video - Title: "${videoTitle}", Duration: ${videoDuration}s`);
+      console.log(`[UploadService] Checking video - Title: "${videoTitle}", Duration: ${videoDuration}s (checking first ${maxPages} pages)`);
 
-      // Fetch all pages
-      while (hasMoreItems) {
+      // Fetch limited pages
+      while (hasMoreItems && currentPage <= maxPages) {
+        console.log(`[UploadService] Checking page ${currentPage}/${maxPages} for existing videos`);
+        
         const response = await this.httpClient.fetchWithError<{ items: Video[] }>(
           `/api/proxy/video/library/${libraryId}/videos?page=${currentPage}&itemsPerPage=${itemsPerPage}&orderBy=date`,
           {
@@ -674,6 +704,10 @@ export class UploadService {
             };
           }
         }
+      }
+
+      if (currentPage > maxPages) {
+        console.log(`[UploadService] Reached page limit (${maxPages}), assuming video doesn't exist in recent uploads`);
       }
 
       return { exists: false };
