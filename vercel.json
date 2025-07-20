@@ -13,7 +13,7 @@
       "dest": "/api/proxy/base/videolibrary.js"
     },
     {
-      "src": "/api/proxy/base/([^/]*)",
+      "src": "/api/proxy/base/([^/]+)",
       "dest": "/api/proxy/base/[...path].js?path=$1"
     },
     {
@@ -31,10 +31,6 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/$1.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/dist/$1"
     }
   ],
   "env": {
