@@ -6,23 +6,26 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    console.log('[Test Simple] Environment check...');
+    console.log('[Test Simple] Starting basic test...');
     
-    const envVars = {
+    // Basic environment check without any external dependencies
+    const basicInfo = {
+      timestamp: new Date().toISOString(),
+      nodeVersion: process.version,
+      platform: process.platform,
       NODE_ENV: process.env.NODE_ENV || 'not set',
       VERCEL_ENV: process.env.VERCEL_ENV || 'not set',
-      GOOGLE_SHEETS_CREDENTIALS_JSON: process.env.GOOGLE_SHEETS_CREDENTIALS_JSON ? 'exists' : 'not set',
-      GOOGLE_SHEETS_SPREADSHEET_ID: process.env.GOOGLE_SHEETS_SPREADSHEET_ID || 'not set',
-      GOOGLE_SHEET_NAME: process.env.GOOGLE_SHEET_NAME || 'not set'
+      hasCredentials: !!process.env.GOOGLE_SHEETS_CREDENTIALS_JSON,
+      hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
+      hasSheetName: !!process.env.GOOGLE_SHEET_NAME
     };
 
-    console.log('[Test Simple] Environment variables:', envVars);
+    console.log('[Test Simple] Basic info collected:', basicInfo);
 
     return res.status(200).json({
       success: true,
       message: 'Simple test successful',
-      timestamp: new Date().toISOString(),
-      environment: envVars
+      data: basicInfo
     });
   } catch (error) {
     console.error('[Test Simple] Error:', error);

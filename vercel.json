@@ -55,10 +55,21 @@
       "dest": "/pages/api/test-simple.js"
     },
     {
+      "src": "/api/test-sheets-basic",
+      "dest": "/pages/api/test-sheets-basic.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/dist/$1"
     }
   ],
+  "functions": {
+    "pages/api/**/*.js": {
+      "runtime": "nodejs18.x",
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
   "env": {
     "NODE_ENV": "production"
   }

@@ -20,6 +20,8 @@ export function EnvironmentDebugger() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [simpleTest, setSimpleTest] = useState<{ success: boolean; message: string; details?: any } | null>(null);
   const [testingSimple, setTestingSimple] = useState(false);
+  const [sheetsBasicTest, setSheetsBasicTest] = useState<{ success: boolean; message: string; details?: any } | null>(null);
+  const [testingSheetsBasic, setTestingSheetsBasic] = useState(false);
 
   const checkEnvironment = async () => {
     setIsLoading(true);
@@ -39,6 +41,54 @@ export function EnvironmentDebugger() {
       setError(err instanceof Error ? err.message : 'Failed to check environment');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const testSheetsBasic = async () => {
+    setTestingSheetsBasic(true);
+    setSheetsBasicTest(null);
+    
+    try {
+      const response = await fetch('/api/test-sheets-basic');
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type') || '';
+      let data;
+      
+      if (contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          const rawText = await response.text();
+          setSheetsBasicTest({
+            success: false,
+            message: `Server returned invalid JSON: ${rawText.substring(0, 100)}...`,
+            details: { rawResponse: rawText, status: response.status }
+          });
+          return;
+        }
+      } else {
+        const rawText = await response.text();
+        setSheetsBasicTest({
+          success: false,
+          message: `Server returned non-JSON response: ${rawText.substring(0, 100)}...`,
+          details: { rawResponse: rawText, status: response.status, contentType }
+        });
+        return;
+      }
+      
+      setSheetsBasicTest({
+        success: response.ok,
+        message: data.message || 'Sheets basic test completed',
+        details: data.data || data.error
+      });
+    } catch (err) {
+      setSheetsBasicTest({
+        success: false,
+        message: err instanceof Error ? err.message : 'Sheets basic test failed'
+      });
+    } finally {
+      setTestingSheetsBasic(false);
     }
   };
 
@@ -184,6 +234,24 @@ export function EnvironmentDebugger() {
           )}
         </Button>
         <Button 
+          onClick={testSheetsBasic} 
+          disabled={testingSheetsBasic}
+          variant="outline"
+          size="sm"
+        >
+          {testingSheetsBasic ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Testing...
+            </>
+          ) : (
+            <>
+              <AlertCircle className="mr-2 h-4 w-4" />
+              Test Sheets Basic
+            </>
+          )}
+        </Button>
+        <Button 
           onClick={testConnection} 
           disabled={testingConnection || !debugData?.credentialsParseable.success}
           variant="outline"
@@ -230,6 +298,33 @@ export function EnvironmentDebugger() {
               <summary className="text-xs cursor-pointer">Show Details</summary>
               <pre className="text-xs mt-1 p-2 bg-gray-100 rounded overflow-auto">
                 {JSON.stringify(simpleTest.details, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+
+      {sheetsBasicTest && (
+        <div className={`p-3 border rounded-md ${
+          sheetsBasicTest.success 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <h4 className={`font-medium text-sm mb-2 ${
+            sheetsBasicTest.success ? 'text-green-800' : 'text-red-800'
+          }`}>
+            Sheets Basic Test Result:
+          </h4>
+          <p className={`text-sm ${
+            sheetsBasicTest.success ? 'text-green-700' : 'text-red-700'
+          }`}>
+            {sheetsBasicTest.message}
+          </p>
+          {sheetsBasicTest.details && (
+            <details className="mt-2">
+              <summary className="text-xs cursor-pointer">Show Details</summary>
+              <pre className="text-xs mt-1 p-2 bg-gray-100 rounded overflow-auto">
+                {JSON.stringify(sheetsBasicTest.details, null, 2)}
               </pre>
             </details>
           )}
