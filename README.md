@@ -13,7 +13,7 @@ npm run build
 
 # Deploy to Vercel - optimized for Hobby plan (under 12 functions limit)
 git add .
-git commit -m "test connection"
+git commit -m "fix test connection"
 git push origin main
 vercel --prod
 ```

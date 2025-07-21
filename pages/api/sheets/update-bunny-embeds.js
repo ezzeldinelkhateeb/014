@@ -3,7 +3,7 @@
  * Updates video embed codes in Google Sheets
  */
 
-const { google } = require('googleapis');
+import { google } from 'googleapis';
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
@@ -106,220 +106,200 @@ const namesMatch = (nameA, nameB) => {
   return false;
 };
 
-// Find matching row in sheet data
+// Find matching row in sheet
 const findMatchingRow = (videoName, rows, nameColumnIndex = 0) => {
-  console.log(`\n[FindRow] Looking for: "${videoName}"`);
-  console.log(`[FindRow] Searching in ${rows.length} rows, column index: ${nameColumnIndex}`);
+  console.log(`[FindRow] Looking for: "${videoName}"`);
+  console.log(`[FindRow] Total rows: ${rows.length}`);
+  console.log(`[FindRow] Name column index: ${nameColumnIndex}`);
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    if (!row || !row[nameColumnIndex]) continue;
-
-    const cellValue = String(row[nameColumnIndex]).trim();
-    if (!cellValue) continue;
-
-    console.log(`[FindRow] Row ${i + 2}: "${cellValue}"`);
-
+    const cellValue = row[nameColumnIndex] || '';
+    
+    console.log(`[FindRow] Row ${i + 1}: "${cellValue}"`);
+    
     if (namesMatch(videoName, cellValue)) {
-      console.log(`[FindRow] ✅ Found match at row ${i + 2}`);
-      return i;
+      console.log(`[FindRow] ✅ Found match at row ${i + 1}`);
+      return i + 1; // Sheet rows are 1-indexed
     }
   }
-
-  console.log('[FindRow] ❌ No matching row found');
-  return -1;
+  
+  console.log(`[FindRow] ❌ No match found for: "${videoName}"`);
+  return null;
 };
 
-// Get column index from letter
+// Convert column letter to index (A=0, B=1, etc.)
 const getColumnIndex = (letter) => {
   if (!letter) return 0;
-  
-  let result = 0;
-  for (let i = 0; i < letter.length; i++) {
-    result = result * 26 + (letter.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
-  }
-  return result - 1;
+  return letter.toUpperCase().charCodeAt(0) - 65;
 };
 
-// Convert number to column letter
+// Convert column index to letter (0=A, 1=B, etc.)
 const getColumnLetter = (index) => {
-  let result = '';
-  while (index >= 0) {
-    result = String.fromCharCode((index % 26) + 'A'.charCodeAt(0)) + result;
-    index = Math.floor(index / 26) - 1;
-  }
-  return result;
+  return String.fromCharCode(65 + index);
 };
 
-// Main handler function
-async function handler(req, res) {
-  console.log('[API] Sheets update handler called');
+export default async function handler(req, res) {
+  console.log('[API] /api/sheets/update-bunny-embeds called');
   console.log('[API] Method:', req.method);
-
-  // CORS handling
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    return res.status(200).end();
-  }
-
+  
+  // Only allow POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    console.log('[API] Method not allowed:', req.method);
+    return res.status(405).json({ 
+      error: 'Method not allowed',
+      message: 'Only POST requests are supported' 
+    });
   }
 
   try {
     const { 
       videos, 
       spreadsheetId, 
-      sheetName = 'OPERATIONS',
-      nameColumn = 'M',
+      sheetName, 
+      nameColumn = 'M', 
       embedColumn = 'V', 
-      finalMinutesColumn = 'P'
+      finalMinutesColumn = 'P' 
     } = req.body;
+    
+    console.log('[API] Request body received:');
+    console.log('[API] Videos count:', videos?.length || 0);
+    console.log('[API] Spreadsheet ID:', spreadsheetId);
+    console.log('[API] Sheet name:', sheetName);
+    console.log('[API] Columns:', { nameColumn, embedColumn, finalMinutesColumn });
 
-    console.log('[API] Request data:', {
-      videosCount: videos?.length || 0,
-      spreadsheetId: spreadsheetId || 'using default',
-      sheetName,
-      nameColumn,
-      embedColumn,
-      finalMinutesColumn
-    });
-
+    // Validate request
     if (!videos || !Array.isArray(videos) || videos.length === 0) {
+      console.log('[API] Invalid videos data');
       return res.status(400).json({
         error: 'Invalid request',
-        message: 'Videos array is required'
+        message: 'Videos array is required and must not be empty'
       });
     }
 
-    // Get Google Sheets credentials - try both possible environment variable names
-    const credentials = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
-    if (!credentials) {
-      console.error('[Sheets] Missing Google credentials');
+    // Check for Google Sheets credentials
+    const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
+    if (!credentialsJSON) {
+      console.error('[API] No Google Sheets credentials found');
       return res.status(401).json({
-        success: false,
-        message: 'Google Sheets credentials not configured (GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON).'
+        error: 'Authentication failed',
+        message: 'Google Sheets credentials not configured'
       });
     }
 
-    console.log('[Sheets] Found credentials, parsing...');
-    const parsedCredentials = JSON.parse(credentials);
-    console.log('[Sheets] Credentials parsed successfully, service account email:', parsedCredentials.client_email);
-    
-    const auth = new google.auth.GoogleAuth({
-      credentials: parsedCredentials,
-      scopes: SCOPES,
-    });
+    // Parse credentials
+    let credentials;
+    try {
+      credentials = JSON.parse(credentialsJSON);
+      console.log('[API] Credentials parsed successfully');
+    } catch (parseError) {
+      console.error('[API] Failed to parse credentials:', parseError.message);
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Invalid Google Sheets credentials format'
+      });
+    }
 
-    const sheets = google.sheets({ version: 'v4', auth });
+    // Use provided spreadsheet ID or fallback to environment variable
     const targetSpreadsheetId = spreadsheetId || process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-
     if (!targetSpreadsheetId) {
-      throw new Error('Spreadsheet ID not provided');
-    }
-
-    console.log('[API] Getting sheet data...');
-
-    // Get all data from the sheet
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: targetSpreadsheetId,
-      range: `${sheetName}!A:Z`,
-    });
-
-    const rows = response.data.values || [];
-    console.log(`[API] Retrieved ${rows.length} rows from sheet`);
-
-    if (rows.length === 0) {
-      return res.status(404).json({
-        error: 'No data found',
-        message: 'Sheet appears to be empty'
+      console.error('[API] No spreadsheet ID provided');
+      return res.status(400).json({
+        error: 'Configuration error',
+        message: 'Spreadsheet ID is required'
       });
     }
+
+    // Use provided sheet name or fallback to environment variable
+    const targetSheetName = sheetName || process.env.GOOGLE_SHEET_NAME || 'Sheet1';
+
+    console.log('[API] Initializing Google Sheets API...');
+    
+    // Initialize Google Auth
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: SCOPES
+    });
+
+    console.log('[API] Auth initialized, creating sheets client...');
+    
+    // Create sheets client
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    console.log('[API] Reading existing sheet data...');
+    
+    // Read existing sheet data
+    const readResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: targetSpreadsheetId,
+      range: `${targetSheetName}!A:Z`
+    });
+
+    const rows = readResponse.data.values || [];
+    console.log(`[API] Read ${rows.length} rows from sheet`);
 
     // Get column indices
     const nameColumnIndex = getColumnIndex(nameColumn);
     const embedColumnIndex = getColumnIndex(embedColumn);
     const finalMinutesColumnIndex = getColumnIndex(finalMinutesColumn);
 
-    console.log('[API] Column mapping:', {
-      name: `${nameColumn} (index ${nameColumnIndex})`,
-      embed: `${embedColumn} (index ${embedColumnIndex})`,
-      finalMinutes: `${finalMinutesColumn} (index ${finalMinutesColumnIndex})`
+    console.log('[API] Column indices:', {
+      name: nameColumnIndex,
+      embed: embedColumnIndex,
+      finalMinutes: finalMinutesColumnIndex
     });
 
-    // Track existing embed codes to avoid duplicates
-    const existingEmbeds = new Map();
-    rows.forEach((row, index) => {
-      if (row[embedColumnIndex]) {
-        existingEmbeds.set(index, row[embedColumnIndex]);
-      }
-    });
-
-    const results = [];
+    // Prepare updates
     const updates = [];
+    const results = [];
 
-    // Process each video
     for (const video of videos) {
-      console.log(`\n[API] Processing video: ${video.name}`);
+      console.log(`[API] Processing video: ${video.name}`);
       
-      const rowIndex = findMatchingRow(video.name, rows, nameColumnIndex);
+      const matchingRow = findMatchingRow(video.name, rows, nameColumnIndex);
       
-      if (rowIndex === -1) {
+      if (matchingRow) {
+        console.log(`[API] Found matching row: ${matchingRow}`);
+        
+        // Prepare embed code update
+        if (video.embedCode) {
+          updates.push({
+            range: `${targetSheetName}!${embedColumn}${matchingRow}`,
+            values: [[video.embedCode]]
+          });
+          console.log(`[API] Added embed update for row ${matchingRow}`);
+        }
+
+        // Prepare final minutes update (if available)
+        if (video.finalMinutes !== undefined && video.finalMinutes !== null) {
+          updates.push({
+            range: `${targetSheetName}!${finalMinutesColumn}${matchingRow}`,
+            values: [[video.finalMinutes]]
+          });
+          console.log(`[API] Added final minutes update for row ${matchingRow}: ${video.finalMinutes}`);
+        }
+
         results.push({
           videoName: video.name,
-          status: 'notFound',
-          details: 'No matching row found in sheet'
+          status: 'updated',
+          row: matchingRow,
+          embedUpdated: !!video.embedCode,
+          finalMinutesUpdated: video.finalMinutes !== undefined && video.finalMinutes !== null
         });
-        console.log('[API] Video not found in sheet');
-        continue;
-      }
-
-      const actualRowNumber = rowIndex + 1; // Convert to 1-based indexing for sheets
-
-      // Check if embed code already exists and is the same
-      const existingEmbed = existingEmbeds.get(rowIndex);
-      if (existingEmbed && existingEmbed.trim() === video.embed_code.trim()) {
+      } else {
+        console.log(`[API] No matching row found for: ${video.name}`);
         results.push({
           videoName: video.name,
-          status: 'skipped',
-          details: 'Embed code already up to date'
-        });
-        console.log('[API] Embed code already exists, skipping');
-        continue;
-      }
-
-      // Prepare update for embed code
-      const embedRange = `${sheetName}!${embedColumn}${actualRowNumber}`;
-      updates.push({
-        range: embedRange,
-        values: [[video.embed_code]]
-      });
-
-      // Prepare update for final minutes if provided
-      if (video.final_minutes !== undefined && finalMinutesColumn) {
-        const minutesRange = `${sheetName}!${finalMinutesColumn}${actualRowNumber}`;
-        updates.push({
-          range: minutesRange,
-          values: [[video.final_minutes.toString()]]
+          status: 'not_found',
+          row: null
         });
       }
-
-      results.push({
-        videoName: video.name,
-        status: 'updated',
-        details: `Updated row ${actualRowNumber}`
-      });
-
-      console.log(`[API] Prepared update for row ${actualRowNumber}`);
     }
 
-    // Perform batch update if there are updates
+    // Apply updates if any
     if (updates.length > 0) {
-      console.log(`[API] Performing batch update with ${updates.length} updates...`);
-
-      await sheets.spreadsheets.values.batchUpdate({
+      console.log(`[API] Applying ${updates.length} updates...`);
+      
+      const updateResponse = await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: targetSpreadsheetId,
         requestBody: {
           valueInputOption: 'RAW',
@@ -327,38 +307,54 @@ async function handler(req, res) {
         }
       });
 
-      console.log('[API] Batch update completed successfully');
+      console.log('[API] Updates applied successfully');
+      console.log('[API] Updated ranges:', updateResponse.data.responses?.map(r => r.updatedRange) || []);
     } else {
-      console.log('[API] No updates needed');
+      console.log('[API] No updates to apply');
     }
 
-    // Calculate stats
+    // Calculate statistics
     const stats = {
-      updated: results.filter(r => r.status === 'updated').length,
-      notFound: results.filter(r => r.status === 'notFound').length,
-      skipped: results.filter(r => r.status === 'skipped').length,
-      error: results.filter(r => r.status === 'error').length
+      totalVideos: videos.length,
+      updatedVideos: results.filter(r => r.status === 'updated').length,
+      notFoundVideos: results.filter(r => r.status === 'not_found').length,
+      totalUpdates: updates.length
     };
 
-    console.log('[API] Update complete. Stats:', stats);
+    console.log('[API] Update completed successfully');
+    console.log('[API] Stats:', stats);
 
     return res.status(200).json({
       success: true,
-      message: `Updated ${stats.updated} videos successfully`,
-      results,
-      stats
+      message: 'Sheet updated successfully',
+      stats,
+      results
     });
 
   } catch (error) {
-    console.error('[API] Error updating sheet:', error);
-    const status = error?.response?.status || error?.status || 500;
-    const googleMessage = error?.response?.data?.error?.message;
-    return res.status(status).json({
-      success: false,
-      message: googleMessage || error.message || 'Unknown error',
-      details: error.stack
+    console.error('[API] Error:', error);
+    
+    // Handle specific Google API errors
+    if (error.code === 403) {
+      return res.status(403).json({
+        error: 'Permission denied',
+        message: 'Access to Google Sheets denied. Please check permissions.',
+        details: error.message
+      });
+    }
+    
+    if (error.code === 404) {
+      return res.status(404).json({
+        error: 'Spreadsheet not found',
+        message: 'The specified spreadsheet could not be found.',
+        details: error.message
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to update sheet',
+      details: error.message
     });
   }
 }
-
-module.exports = handler;
