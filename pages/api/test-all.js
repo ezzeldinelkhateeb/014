@@ -1,6 +1,6 @@
-const { google } = require('googleapis');
+import { google } from 'googleapis';
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   console.log('[Test All] Handler called');
   
   if (req.method !== 'GET') {
@@ -31,10 +31,11 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({
       success: false,
       message: 'Test failed',
-      error: error.message
+      error: error.message,
+      stack: error.stack?.substring(0, 200)
     });
   }
-};
+}
 
 async function handleSimpleTest(req, res) {
   console.log('[Test All] Running simple test...');
@@ -62,157 +63,177 @@ async function handleSimpleTest(req, res) {
 async function handleSheetsBasicTest(req, res) {
   console.log('[Test All] Running sheets basic test...');
   
-  // Step 1: Check credentials
-  const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
-  if (!credentialsJSON) {
-    console.log('[Test All] No credentials found');
-    return res.status(401).json({
-      success: false,
-      message: 'No Google Sheets credentials found'
-    });
-  }
-
-  console.log('[Test All] Credentials found, length:', credentialsJSON.length);
-
-  // Step 2: Parse credentials
-  let credentials;
   try {
-    credentials = JSON.parse(credentialsJSON);
-    console.log('[Test All] Credentials parsed successfully');
-  } catch (parseError) {
-    console.error('[Test All] Failed to parse credentials:', parseError.message);
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid credentials JSON format',
-      error: parseError.message
-    });
-  }
-
-  // Step 3: Check spreadsheet ID
-  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) {
-    console.log('[Test All] No spreadsheet ID found');
-    return res.status(401).json({
-      success: false,
-      message: 'No spreadsheet ID found'
-    });
-  }
-
-  console.log('[Test All] Spreadsheet ID found:', spreadsheetId);
-
-  // Step 4: Initialize Google Auth
-  console.log('[Test All] Initializing Google Auth...');
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-  });
-
-  console.log('[Test All] Auth initialized');
-
-  // Step 5: Create sheets client
-  console.log('[Test All] Creating sheets client...');
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  console.log('[Test All] Sheets client created');
-
-  // Step 6: Test connection with minimal request
-  console.log('[Test All] Testing connection...');
-  const response = await sheets.spreadsheets.get({
-    spreadsheetId,
-    ranges: [],
-    includeGridData: false
-  });
-
-  console.log('[Test All] Connection successful');
-  console.log('[Test All] Spreadsheet title:', response.data.properties?.title);
-
-  return res.status(200).json({
-    success: true,
-    message: 'Google Sheets connection successful',
-    data: {
-      spreadsheetId,
-      title: response.data.properties?.title || 'Unknown',
-      sheets: response.data.sheets?.map(s => s.properties?.title) || []
+    // Step 1: Check credentials
+    const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
+    if (!credentialsJSON) {
+      console.log('[Test All] No credentials found');
+      return res.status(401).json({
+        success: false,
+        message: 'No Google Sheets credentials found'
+      });
     }
-  });
+
+    console.log('[Test All] Credentials found, length:', credentialsJSON.length);
+
+    // Step 2: Parse credentials
+    let credentials;
+    try {
+      credentials = JSON.parse(credentialsJSON);
+      console.log('[Test All] Credentials parsed successfully');
+    } catch (parseError) {
+      console.error('[Test All] Failed to parse credentials:', parseError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials JSON format',
+        error: parseError.message
+      });
+    }
+
+    // Step 3: Check spreadsheet ID
+    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    if (!spreadsheetId) {
+      console.log('[Test All] No spreadsheet ID found');
+      return res.status(401).json({
+        success: false,
+        message: 'No spreadsheet ID found'
+      });
+    }
+
+    console.log('[Test All] Spreadsheet ID found:', spreadsheetId);
+
+    // Step 4: Initialize Google Auth
+    console.log('[Test All] Initializing Google Auth...');
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+
+    console.log('[Test All] Auth initialized');
+
+    // Step 5: Create sheets client
+    console.log('[Test All] Creating sheets client...');
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    console.log('[Test All] Sheets client created');
+
+    // Step 6: Test connection with minimal request
+    console.log('[Test All] Testing connection...');
+    const response = await sheets.spreadsheets.get({
+      spreadsheetId,
+      ranges: [],
+      includeGridData: false
+    });
+
+    console.log('[Test All] Connection successful');
+    console.log('[Test All] Spreadsheet title:', response.data.properties?.title);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Google Sheets connection successful',
+      data: {
+        spreadsheetId,
+        title: response.data.properties?.title || 'Unknown',
+        sheets: response.data.sheets?.map(s => s.properties?.title) || []
+      }
+    });
+
+  } catch (error) {
+    console.error('[Test All] Sheets basic test error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Google Sheets connection failed',
+      error: error.message
+    });
+  }
 }
 
 async function handleSheetsConnectionTest(req, res) {
   console.log('[Test All] Running sheets connection test...');
   
-  const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
-  if (!credentialsJSON) {
-    console.error('[Test All] No credentials found');
-    return res.status(401).json({
-      success: false,
-      message: 'Google Sheets credentials not configured. Please set GOOGLE_SHEETS_CREDENTIALS_JSON in Vercel environment variables.'
-    });
-  }
-
-  console.log('[Test All] Credentials found, length:', credentialsJSON.length);
-
-  let credentials;
   try {
-    credentials = JSON.parse(credentialsJSON);
-    console.log('[Test All] Credentials parsed successfully');
-  } catch (parseError) {
-    console.error('[Test All] Failed to parse credentials JSON:', parseError.message);
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid Google Sheets credentials JSON format.',
-      error: parseError.message
-    });
-  }
-
-  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  if (!spreadsheetId) {
-    console.error('[Test All] No spreadsheet ID found');
-    return res.status(401).json({
-      success: false,
-      message: 'GOOGLE_SHEETS_SPREADSHEET_ID environment variable is not set.'
-    });
-  }
-
-  console.log('[Test All] Spreadsheet ID found:', spreadsheetId);
-
-  const sheetName = process.env.GOOGLE_SHEET_NAME || 'Sheet1';
-  console.log('[Test All] Using sheet name:', sheetName);
-
-  console.log('[Test All] Initializing Google Sheets API...');
-
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-  });
-
-  console.log('[Test All] Auth initialized, creating sheets client...');
-
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  console.log('[Test All] Attempting to read sheet...');
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${sheetName}!A1:A1`,
-    valueRenderOption: 'UNFORMATTED_VALUE'
-  });
-
-  console.log('[Test All] Successfully read sheet');
-  console.log('[Test All] Response data:', {
-    hasValues: !!response.data.values,
-    valuesLength: response.data.values?.length || 0,
-    firstCellValue: response.data.values?.[0]?.[0] || 'empty'
-  });
-
-  return res.status(200).json({
-    success: true,
-    message: 'Successfully connected to Google Sheets.',
-    data: {
-      spreadsheetId,
-      sheetName,
-      cellA1Value: response.data.values?.[0]?.[0] ?? null,
-      hasValuesInRange: !!response.data.values?.length
+    const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
+    if (!credentialsJSON) {
+      console.error('[Test All] No credentials found');
+      return res.status(401).json({
+        success: false,
+        message: 'Google Sheets credentials not configured. Please set GOOGLE_SHEETS_CREDENTIALS_JSON in Vercel environment variables.'
+      });
     }
-  });
+
+    console.log('[Test All] Credentials found, length:', credentialsJSON.length);
+
+    let credentials;
+    try {
+      credentials = JSON.parse(credentialsJSON);
+      console.log('[Test All] Credentials parsed successfully');
+    } catch (parseError) {
+      console.error('[Test All] Failed to parse credentials JSON:', parseError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid Google Sheets credentials JSON format.',
+        error: parseError.message
+      });
+    }
+
+    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    if (!spreadsheetId) {
+      console.error('[Test All] No spreadsheet ID found');
+      return res.status(401).json({
+        success: false,
+        message: 'GOOGLE_SHEETS_SPREADSHEET_ID environment variable is not set.'
+      });
+    }
+
+    console.log('[Test All] Spreadsheet ID found:', spreadsheetId);
+
+    const sheetName = process.env.GOOGLE_SHEET_NAME || 'Sheet1';
+    console.log('[Test All] Using sheet name:', sheetName);
+
+    console.log('[Test All] Initializing Google Sheets API...');
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    });
+
+    console.log('[Test All] Auth initialized, creating sheets client...');
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    console.log('[Test All] Attempting to read sheet...');
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A1:A1`,
+      valueRenderOption: 'UNFORMATTED_VALUE'
+    });
+
+    console.log('[Test All] Successfully read sheet');
+    console.log('[Test All] Response data:', {
+      hasValues: !!response.data.values,
+      valuesLength: response.data.values?.length || 0,
+      firstCellValue: response.data.values?.[0]?.[0] || 'empty'
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Successfully connected to Google Sheets.',
+      data: {
+        spreadsheetId,
+        sheetName,
+        cellA1Value: response.data.values?.[0]?.[0] ?? null,
+        hasValuesInRange: !!response.data.values?.length
+      }
+    });
+
+  } catch (error) {
+    console.error('[Test All] Sheets connection test error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Google Sheets connection failed',
+      error: error.message
+    });
+  }
 }
 
 async function handleDebugEnvTest(req, res) {
