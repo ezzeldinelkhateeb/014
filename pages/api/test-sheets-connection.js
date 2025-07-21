@@ -7,44 +7,69 @@
 const { google } = require('googleapis');
 
 module.exports = async function handler(req, res) {
+  console.log('[Test Connection] Handler called');
+  
   if (req.method !== 'GET') {
     return res.status(405).json({ success: false, message: 'Method not allowed. Only GET is supported.' });
   }
 
   try {
-    // Retrieve credentials. Support both env var names to remain compatible with existing code.
+    console.log('[Test Connection] Checking environment variables...');
+    
+    // Check for credentials
     const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
     if (!credentialsJSON) {
-      return res.status(401).json({ success: false, message: 'Google Sheets credentials not configured (GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON).' });
+      console.error('[Test Connection] No credentials found');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Google Sheets credentials not configured. Please set GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON in Vercel environment variables.' 
+      });
     }
 
+    console.log('[Test Connection] Credentials found, parsing...');
     let credentials;
     try {
       credentials = JSON.parse(credentialsJSON);
+      console.log('[Test Connection] Credentials parsed successfully');
     } catch (error) {
-      return res.status(500).json({ success: false, message: 'Failed to parse Google credentials JSON', error: error instanceof Error ? error.message : String(error) });
+      console.error('[Test Connection] Failed to parse credentials:', error.message);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid Google Sheets credentials format. Please check the JSON structure.' 
+      });
     }
 
+    // Check for spreadsheet ID
     const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
     if (!spreadsheetId) {
-      return res.status(500).json({ success: false, message: 'GOOGLE_SHEETS_SPREADSHEET_ID environment variable is not set.' });
+      console.error('[Test Connection] No spreadsheet ID found');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'GOOGLE_SHEETS_SPREADSHEET_ID environment variable is not set.' 
+      });
     }
 
+    console.log('[Test Connection] Spreadsheet ID found:', spreadsheetId);
     const sheetName = process.env.GOOGLE_SHEET_NAME || 'OPERATIONS';
+    console.log('[Test Connection] Using sheet name:', sheetName);
 
+    console.log('[Test Connection] Creating Google Auth...');
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
     });
 
+    console.log('[Test Connection] Creating sheets client...');
     const sheets = google.sheets({ version: 'v4', auth });
 
+    console.log('[Test Connection] Attempting to read sheet...');
     // Attempt to read a single cell (A1) – minimal quota cost and sufficient to validate access.
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: `${sheetName}!A1:A1`
     });
 
+    console.log('[Test Connection] Successfully read sheet');
     return res.status(200).json({
       success: true,
       message: 'Successfully connected to Google Sheets.',
@@ -56,12 +81,32 @@ module.exports = async function handler(req, res) {
       }
     });
   } catch (error) {
+    console.error('[Test Connection] Error:', error);
+    
+    // Check if it's a Google API error
+    if (error.code === 403) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Please check if the service account has permission to access this spreadsheet.',
+        error: error.message
+      });
+    }
+    
+    if (error.code === 404) {
+      return res.status(404).json({
+        success: false,
+        message: 'Spreadsheet not found. Please check the GOOGLE_SHEETS_SPREADSHEET_ID.',
+        error: error.message
+      });
+    }
+    
     const status = error?.response?.status || error?.status || 500;
     const googleMessage = error?.response?.data?.error?.message;
+    
     return res.status(status).json({
       success: false,
       message: 'Failed to connect to Google Sheets',
-      error: googleMessage || (error instanceof Error ? error.message : String(error))
+      error: googleMessage || error.message || 'Unknown error occurred'
     });
   }
 } 

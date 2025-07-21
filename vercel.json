@@ -47,6 +47,10 @@
       "dest": "/pages/api/sheets/update-final-minutes.js"
     },
     {
+      "src": "/api/debug-env",
+      "dest": "/pages/api/debug-env.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/dist/$1"
     }

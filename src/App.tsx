@@ -4,6 +4,7 @@ import Home from "./components/home";
 import NotFound from "./components/NotFound";
 import routes from "tempo-routes";
 import { TestSheetsConnection } from "./components/TestSheetsConnection";
+import { EnvironmentDebugger } from "./components/EnvironmentDebugger";
 import { ToastProvider } from "./components/providers/toast-provider";
 import { Toaster } from "./components/ui/toaster";
 
@@ -12,7 +13,10 @@ function App() {
     <ToastProvider>
       <Suspense fallback={<p>Loading...</p>}>
         <div className="min-h-screen bg-background">
-          <TestSheetsConnection />
+          <div className="p-4 space-y-4">
+            <TestSheetsConnection />
+            <EnvironmentDebugger />
+          </div>
           {/* Tempo routes first */}
           {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
 
