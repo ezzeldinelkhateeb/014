@@ -4,9 +4,9 @@
  * Returns { success, message, data? }
  */
 
-import { google } from 'googleapis';
+const { google } = require('googleapis');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ success: false, message: 'Method not allowed. Only GET is supported.' });
   }
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     // Retrieve credentials. Support both env var names to remain compatible with existing code.
     const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
     if (!credentialsJSON) {
-      return res.status(500).json({ success: false, message: 'Google Sheets credentials not configured (GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON).' });
+      return res.status(401).json({ success: false, message: 'Google Sheets credentials not configured (GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON).' });
     }
 
     let credentials;
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
       }
     });
   } catch (error) {
-    const status = error?.response?.status || 500;
+    const status = error?.response?.status || error?.status || 500;
     const googleMessage = error?.response?.data?.error?.message;
     return res.status(status).json({
       success: false,

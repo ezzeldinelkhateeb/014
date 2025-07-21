@@ -72,7 +72,7 @@ module.exports = async function handler(req, res) {
 
     const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
     if (!credentialsJSON) {
-      return res.status(500).json({ error: 'Google Sheets credentials not configured' });
+      return res.status(401).json({ success: false, message: 'Google Sheets credentials not configured (GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON).' });
     }
 
     const auth = new google.auth.GoogleAuth({
@@ -135,6 +135,8 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ success: true, message: 'Final minutes update finished', results, stats });
   } catch (error) {
     console.error('[API] update-final-minutes error:', error);
-    return res.status(error?.response?.status || 500).json({ success: false, message: 'Failed to update final minutes', error: error?.message || String(error) });
+    const status = error?.response?.status || error?.status || 500;
+    const googleMessage = error?.response?.data?.error?.message;
+    return res.status(status).json({ success: false, message: googleMessage || error?.message || 'Failed to update final minutes', error: error?.message || String(error) });
   }
 }; 

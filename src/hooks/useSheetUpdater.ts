@@ -21,6 +21,25 @@ interface SheetUpdateState {
   setOpen: (open: boolean) => void;
 }
 
+// Helper to safely parse JSON; returns [success, data|string]
+async function safeParseJSON(response: Response): Promise<[boolean, any]> {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      const json = await response.json();
+      return [true, json];
+    } catch (e) {
+      // Fall through to text parsing
+    }
+  }
+  try {
+    const text = await response.text();
+    return [false, text];
+  } catch {
+    return [false, 'Unable to parse response'];
+  }
+}
+
 export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null) {
   const { toast } = useToast();
   const [isUpdatingSheet, setIsUpdatingSheet] = useState(false);
@@ -131,7 +150,13 @@ export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null
       
       console.log(`[useSheetUpdater] 📝 First video example:`, embedUpdates[0]);
 
-      const result = await response.json();
+      const [isJSON, parsedResult] = await safeParseJSON(response);
+
+      if (!isJSON) {
+        throw new Error(`Sheet update failed: ${parsedResult}`);
+      }
+
+      const result = parsedResult;
       
       console.log(`[useSheetUpdater] 📥 RESPONSE RECEIVED FROM API:`);
       console.log(`[useSheetUpdater] ✅ Success: ${result.success}`);
@@ -319,25 +344,31 @@ export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null
         console.log(`[useSheetUpdater] No sheet config - using env defaults for final minutes`);
       }
 
-      const result = await response.json();
+      const [isJSON2, parsedResult2] = await safeParseJSON(response);
+
+      if (!isJSON2) {
+        throw new Error(`Final minutes update failed: ${parsedResult2}`);
+      }
+
+      const finalResult = parsedResult2;
       
       console.log(`[useSheetUpdater] 📥 FINAL MINUTES RESPONSE:`);
-      console.log(`[useSheetUpdater] ✅ Success: ${result.success}`);
-      console.log(`[useSheetUpdater] 📊 Stats:`, result.stats);
-      console.log(`[useSheetUpdater] 📝 Message: ${result.message}`);
-      console.log(`[useSheetUpdater] 📋 Results count: ${result.results ? result.results.length : 0}`);
+      console.log(`[useSheetUpdater] ✅ Success: ${finalResult.success}`);
+      console.log(`[useSheetUpdater] 📊 Stats:`, finalResult.stats);
+      console.log(`[useSheetUpdater] 📝 Message: ${finalResult.message}`);
+      console.log(`[useSheetUpdater] 📋 Results count: ${finalResult.results ? finalResult.results.length : 0}`);
       
-      if (result.results && result.results.length > 0) {
+      if (finalResult.results && finalResult.results.length > 0) {
         console.log(`[useSheetUpdater] 🔍 Final minutes detailed results:`);
-        result.results.forEach((res, index) => {
+        finalResult.results.forEach((res, index) => {
           console.log(`[useSheetUpdater]   ${index + 1}. "${res.videoName}" -> ${res.status} (${res.details || 'no details'})`);
         });
       }
 
-      if (result.success) {
+      if (finalResult.success) {
         // Directly use the detailed results from the API
-        const detailedResults = result.results || [];
-        const stats = result.stats || {
+        const detailedResults = finalResult.results || [];
+        const stats = finalResult.stats || {
           updated: 0,
           notFound: 0,
           skipped: 0,
@@ -382,7 +413,7 @@ export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null
           });
         }
       } else {
-        throw new Error(result.message || 'Final minutes update failed');
+        throw new Error(finalResult.message || 'Final minutes update failed');
       }
     } catch (error) {
       console.error(`[useSheetUpdater] ❌ FINAL MINUTES UPDATE ERROR:`, error);
