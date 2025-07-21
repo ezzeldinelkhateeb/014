@@ -13,10 +13,11 @@ npm run build
 
 # Deploy to Vercel - optimized for Hobby plan (under 12 functions limit)
 git add .
-git commit -m "Optimize API structure for Vercel Hobby plan - consolidate to 8 functions"
+git commit -m "read me"
 git push origin main
 vercel --prod
 ```
+git reset --hard 2cd90046c9535c9b24b3fa6fcbd1c86f7de34a2a
 
 ## API Troubleshooting
 
