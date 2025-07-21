@@ -28,7 +28,7 @@ export function EnvironmentDebugger() {
     setError(null);
     
     try {
-      const response = await fetch('/api/debug-env');
+      const response = await fetch('/api/test-all?test=debug-env');
       
       if (response.ok) {
         const data = await response.json();
@@ -49,7 +49,7 @@ export function EnvironmentDebugger() {
     setSheetsBasicTest(null);
     
     try {
-      const response = await fetch('/api/test-sheets-basic');
+      const response = await fetch('/api/test-all?test=sheets-basic');
       
       // Check if response is JSON
       const contentType = response.headers.get('content-type') || '';
@@ -97,7 +97,7 @@ export function EnvironmentDebugger() {
     setSimpleTest(null);
     
     try {
-      const response = await fetch('/api/test-simple');
+      const response = await fetch('/api/test-all?test=simple');
       
       // Check if response is JSON
       const contentType = response.headers.get('content-type') || '';
@@ -145,7 +145,7 @@ export function EnvironmentDebugger() {
     setConnectionTest(null);
     
     try {
-      const response = await fetch('/api/test-sheets-connection');
+      const response = await fetch('/api/test-all?test=sheets-connection');
       
       // Check if response is JSON
       const contentType = response.headers.get('content-type') || '';

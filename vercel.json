@@ -44,24 +44,12 @@
       "dest": "/pages/api/clear-cache.js"
     },
     {
-      "src": "/api/test-sheets-connection",
-      "dest": "/pages/api/test-sheets-connection.js"
-    },
-    {
       "src": "/api/sheets/update-final-minutes",
       "dest": "/pages/api/sheets/update-final-minutes.js"
     },
     {
-      "src": "/api/debug-env",
-      "dest": "/pages/api/debug-env.js"
-    },
-    {
-      "src": "/api/test-simple",
-      "dest": "/pages/api/test-simple.js"
-    },
-    {
-      "src": "/api/test-sheets-basic",
-      "dest": "/pages/api/test-sheets-basic.js"
+      "src": "/api/test-all",
+      "dest": "/pages/api/test-all.js"
     },
     {
       "src": "/(.*)",
