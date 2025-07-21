@@ -70,6 +70,12 @@ module.exports = async function handler(req, res) {
     });
 
     console.log('[Test Connection] Successfully read sheet');
+    console.log('[Test Connection] Response data:', {
+      hasValues: !!response.data.values,
+      valuesLength: response.data.values?.length || 0,
+      firstCellValue: response.data.values?.[0]?.[0] || 'empty'
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Successfully connected to Google Sheets.',
@@ -82,9 +88,17 @@ module.exports = async function handler(req, res) {
     });
   } catch (error) {
     console.error('[Test Connection] Error:', error);
+    console.error('[Test Connection] Error details:', {
+      code: error.code,
+      status: error.status,
+      message: error.message,
+      response: error.response?.data,
+      stack: error.stack?.substring(0, 500)
+    });
     
     // Check if it's a Google API error
     if (error.code === 403) {
+      console.error('[Test Connection] 403 Forbidden - Check permissions for service account');
       return res.status(403).json({
         success: false,
         message: 'Access denied. Please check if the service account has permission to access this spreadsheet.',
@@ -93,11 +107,34 @@ module.exports = async function handler(req, res) {
     }
     
     if (error.code === 404) {
+      console.error('[Test Connection] 404 Not Found - Check spreadsheet ID');
       return res.status(404).json({
         success: false,
         message: 'Spreadsheet not found. Please check the GOOGLE_SHEETS_SPREADSHEET_ID.',
         error: error.message
       });
+    }
+    
+    // Check for specific Google API errors
+    if (error.response?.data?.error?.message) {
+      const googleError = error.response.data.error;
+      console.error('[Test Connection] Google API Error:', googleError);
+      
+      if (googleError.message.includes('Requested entity was not found')) {
+        return res.status(404).json({
+          success: false,
+          message: 'Spreadsheet not found or access denied. Please check the spreadsheet ID and permissions.',
+          error: googleError.message
+        });
+      }
+      
+      if (googleError.message.includes('The caller does not have permission')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Please share the spreadsheet with the service account email.',
+          error: googleError.message
+        });
+      }
     }
     
     const status = error?.response?.status || error?.status || 500;

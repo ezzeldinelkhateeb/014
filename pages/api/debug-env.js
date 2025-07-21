@@ -45,7 +45,8 @@ export default async function handler(req, res) {
             success: true,
             hasClientEmail: !!parsed.client_email,
             hasPrivateKey: !!parsed.private_key,
-            projectId: parsed.project_id || 'not found'
+            projectId: parsed.project_id || 'not found',
+            clientEmail: parsed.client_email || 'not found'
           };
         } catch (e) {
           return {

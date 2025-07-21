@@ -9,13 +9,15 @@ interface EnvDebugData {
   GOOGLE_SHEET_NAME: { exists: boolean; value: string };
   NODE_ENV: string;
   VERCEL_ENV: string;
-  credentialsParseable: { success: boolean; hasClientEmail?: boolean; hasPrivateKey?: boolean; projectId?: string; error?: string };
+  credentialsParseable: { success: boolean; hasClientEmail?: boolean; hasPrivateKey?: boolean; projectId?: string; error?: string; clientEmail?: string };
 }
 
 export function EnvironmentDebugger() {
   const [isLoading, setIsLoading] = useState(false);
   const [debugData, setDebugData] = useState<EnvDebugData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [connectionTest, setConnectionTest] = useState<{ success: boolean; message: string; details?: any } | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
 
   const checkEnvironment = async () => {
     setIsLoading(true);
@@ -35,6 +37,29 @@ export function EnvironmentDebugger() {
       setError(err instanceof Error ? err.message : 'Failed to check environment');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const testConnection = async () => {
+    setTestingConnection(true);
+    setConnectionTest(null);
+    
+    try {
+      const response = await fetch('/api/test-sheets-connection');
+      const data = await response.json();
+      
+      setConnectionTest({
+        success: response.ok,
+        message: data.message || 'Connection test completed',
+        details: data.data || data.error
+      });
+    } catch (err) {
+      setConnectionTest({
+        success: false,
+        message: err instanceof Error ? err.message : 'Connection test failed'
+      });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -63,11 +88,56 @@ export function EnvironmentDebugger() {
             </>
           )}
         </Button>
+        <Button 
+          onClick={testConnection} 
+          disabled={testingConnection || !debugData?.credentialsParseable.success}
+          variant="outline"
+          size="sm"
+        >
+          {testingConnection ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Testing...
+            </>
+          ) : (
+            <>
+              <AlertCircle className="mr-2 h-4 w-4" />
+              Test Connection
+            </>
+          )}
+        </Button>
       </div>
 
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-md">
           <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
+      {connectionTest && (
+        <div className={`p-3 border rounded-md ${
+          connectionTest.success 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <h4 className={`font-medium text-sm mb-2 ${
+            connectionTest.success ? 'text-green-800' : 'text-red-800'
+          }`}>
+            Connection Test Result:
+          </h4>
+          <p className={`text-sm ${
+            connectionTest.success ? 'text-green-700' : 'text-red-700'
+          }`}>
+            {connectionTest.message}
+          </p>
+          {connectionTest.details && (
+            <details className="mt-2">
+              <summary className="text-xs cursor-pointer">Show Details</summary>
+              <pre className="text-xs mt-1 p-2 bg-gray-100 rounded overflow-auto">
+                {JSON.stringify(connectionTest.details, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
       )}
 
@@ -158,10 +228,15 @@ export function EnvironmentDebugger() {
                debugData.credentialsParseable.success && (
                 <li className="text-green-700">✓ All required environment variables are configured</li>
               )}
+              {debugData.GOOGLE_SHEETS_CREDENTIALS_JSON.exists && 
+               debugData.GOOGLE_SHEETS_SPREADSHEET_ID.exists && 
+               debugData.credentialsParseable.success && (
+                <li>• Share the spreadsheet with: {debugData.credentialsParseable.clientEmail || 'service account email'}</li>
+              )}
             </ul>
           </div>
         </div>
       )}
     </div>
   );
-} 
+}
