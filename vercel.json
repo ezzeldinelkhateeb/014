@@ -39,6 +39,14 @@
       "dest": "/pages/api/clear-cache.js"
     },
     {
+      "src": "/api/test-sheets-connection",
+      "dest": "/pages/api/test-sheets-connection.js"
+    },
+    {
+      "src": "/api/sheets/update-final-minutes",
+      "dest": "/pages/api/sheets/update-final-minutes.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/dist/$1"
     }
