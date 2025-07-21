@@ -51,6 +51,10 @@
       "dest": "/pages/api/debug-env.js"
     },
     {
+      "src": "/api/test-simple",
+      "dest": "/pages/api/test-simple.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/dist/$1"
     }

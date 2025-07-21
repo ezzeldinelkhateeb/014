@@ -7,66 +7,68 @@
 const { google } = require('googleapis');
 
 module.exports = async function handler(req, res) {
-  console.log('[Test Connection] Handler called');
-  
   if (req.method !== 'GET') {
-    return res.status(405).json({ success: false, message: 'Method not allowed. Only GET is supported.' });
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
+  console.log('[Test Connection] Starting connection test...');
+  
   try {
-    console.log('[Test Connection] Checking environment variables...');
-    
-    // Check for credentials
     const credentialsJSON = process.env.GOOGLE_SHEETS_CREDENTIALS || process.env.GOOGLE_SHEETS_CREDENTIALS_JSON;
     if (!credentialsJSON) {
       console.error('[Test Connection] No credentials found');
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Google Sheets credentials not configured. Please set GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON in Vercel environment variables.' 
+      return res.status(401).json({
+        success: false,
+        message: 'Google Sheets credentials not configured. Please set GOOGLE_SHEETS_CREDENTIALS or GOOGLE_SHEETS_CREDENTIALS_JSON in Vercel environment variables.'
       });
     }
 
-    console.log('[Test Connection] Credentials found, parsing...');
+    console.log('[Test Connection] Credentials found, length:', credentialsJSON.length);
+
     let credentials;
     try {
       credentials = JSON.parse(credentialsJSON);
       console.log('[Test Connection] Credentials parsed successfully');
-    } catch (error) {
-      console.error('[Test Connection] Failed to parse credentials:', error.message);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid Google Sheets credentials format. Please check the JSON structure.' 
+    } catch (parseError) {
+      console.error('[Test Connection] Failed to parse credentials JSON:', parseError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid Google Sheets credentials JSON format.',
+        error: parseError.message
       });
     }
 
-    // Check for spreadsheet ID
     const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
     if (!spreadsheetId) {
       console.error('[Test Connection] No spreadsheet ID found');
-      return res.status(401).json({ 
-        success: false, 
-        message: 'GOOGLE_SHEETS_SPREADSHEET_ID environment variable is not set.' 
+      return res.status(401).json({
+        success: false,
+        message: 'GOOGLE_SHEETS_SPREADSHEET_ID environment variable is not set.'
       });
     }
 
     console.log('[Test Connection] Spreadsheet ID found:', spreadsheetId);
-    const sheetName = process.env.GOOGLE_SHEET_NAME || 'OPERATIONS';
+
+    const sheetName = process.env.GOOGLE_SHEET_NAME || 'Sheet1';
     console.log('[Test Connection] Using sheet name:', sheetName);
 
-    console.log('[Test Connection] Creating Google Auth...');
+    console.log('[Test Connection] Initializing Google Sheets API...');
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
     });
 
-    console.log('[Test Connection] Creating sheets client...');
+    console.log('[Test Connection] Auth initialized, creating sheets client...');
+
     const sheets = google.sheets({ version: 'v4', auth });
 
     console.log('[Test Connection] Attempting to read sheet...');
     // Attempt to read a single cell (A1) – minimal quota cost and sufficient to validate access.
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `${sheetName}!A1:A1`
+      range: `${sheetName}!A1:A1`,
+      valueRenderOption: 'UNFORMATTED_VALUE'
     });
 
     console.log('[Test Connection] Successfully read sheet');
@@ -95,6 +97,30 @@ module.exports = async function handler(req, res) {
       response: error.response?.data,
       stack: error.stack?.substring(0, 500)
     });
+    
+    // Handle specific Google API errors
+    if (error.response?.data?.error) {
+      const googleError = error.response.data.error;
+      console.error('[Test Connection] Google API Error:', googleError);
+      
+      if (googleError.code === 403) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Please share the spreadsheet with the service account email.',
+          error: googleError.message,
+          details: googleError
+        });
+      }
+      
+      if (googleError.code === 404) {
+        return res.status(404).json({
+          success: false,
+          message: 'Spreadsheet not found. Please check the GOOGLE_SHEETS_SPREADSHEET_ID.',
+          error: googleError.message,
+          details: googleError
+        });
+      }
+    }
     
     // Check if it's a Google API error
     if (error.code === 403) {
@@ -146,4 +172,4 @@ module.exports = async function handler(req, res) {
       error: googleMessage || error.message || 'Unknown error occurred'
     });
   }
-} 
+}; 
