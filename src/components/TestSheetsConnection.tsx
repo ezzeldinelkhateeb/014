@@ -9,9 +9,26 @@ export function TestSheetsConnection() {
   const testConnection = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://10.0.0.168:8000/api/test-sheets-connection');
-      const data = await response.json();
-      setResult(data);
+      const response = await fetch('/api/test-sheets-connection');
+
+      if (response.ok) {
+        const data = await response.json();
+        setResult({ success: true, message: data.message || 'Connection successful' });
+      } else {
+        let errorMessage = `HTTP ${response.status} - ${response.statusText}`;
+
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          // If response is not JSON, fall back to plain text
+          try {
+            errorMessage = await response.text();
+          } catch {}
+        }
+
+        setResult({ success: false, message: errorMessage });
+      }
     } catch (error) {
       setResult({
         success: false,
