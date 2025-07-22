@@ -66,7 +66,7 @@ const normalizeString = (str: string): string => {
   return normalized;
 };
 
-// Function to extract Q numbers with improved flexibility
+// Function to extract Q numbers with improved matching
 const extractQNumbers = (str: string): string[] => {
   const qMatches = str.match(/q\s*\d+/gi);
   return qMatches 
@@ -74,7 +74,7 @@ const extractQNumbers = (str: string): string[] => {
     : [];
 };
 
-// Updated namesMatch function with stricter validation
+// Updated namesMatch function with stricter validation for Q numbers
 const namesMatch = (nameA: string, nameB: string): boolean => {
   nameA = nameA.replace(/\.mp4$/i, '');
   nameB = nameB.replace(/\.mp4$/i, '');
@@ -98,6 +98,24 @@ const namesMatch = (nameA: string, nameB: string): boolean => {
 
   console.log(`[namesMatch] CoreA: "${coreA}", QsA: [${qNumbersA.join(',')}]`);
   console.log(`[namesMatch] CoreB: "${coreB}", QsB: [${qNumbersB.join(',')}]`);
+  
+  // IMPORTANT: If either has Q numbers but not the same ones, they are DIFFERENT videos
+  if (qNumbersA.length > 0 || qNumbersB.length > 0) {
+    // Different Q number count means different videos
+    if (qNumbersA.length !== qNumbersB.length) {
+      console.log('[namesMatch] ❌ Q number mismatch: different count.');
+      return false;
+    }
+    
+    // Check if all Q numbers match exactly
+    const allQsMatch = qNumbersA.length === qNumbersB.length && 
+                       qNumbersA.every(q => qNumbersB.includes(q));
+    
+    if (!allQsMatch) {
+      console.log('[namesMatch] ❌ Q number mismatch: different Q numbers.');
+      return false;
+    }
+  }
 
   // ENHANCED: Handle specific format M2-T2-U2-L2-SCI-AR-P0078... format with STRICT matching
   const codePatternA = normA.match(/(m\d+|s\d+|j\d+)-t\d+-u\d+-l\d+-(sci|ar|en|math)-\w+-(p\d+)/i);
@@ -275,7 +293,7 @@ export default async function handler(req: Request, res: Response) {
       error: 0
     };
 
-    // Process each video
+    // Process each video with improved existing content check
     for (const video of videos) {
       console.log(`[Handler] Processing video: "${video.name}"`);
 
@@ -285,14 +303,23 @@ export default async function handler(req: Request, res: Response) {
       // Find matching row
       const rowIndex = findMatchingRow(processedVideoName, rows, 0); // Column M is index 0
       const rowNumber = rowIndex + 1; // 1-based row number
-      const existingEmbed = rowIndex !== -1 ? existingEmbeds.get(rowNumber) : undefined;
+      
+      // Improved check for existing embed content
+      let existingEmbed = undefined;
+      if (rowIndex !== -1) {
+        const row = rows[rowIndex];
+        if (row && row.length > 8) { // Column V is index 8 (assuming M:V range)
+          existingEmbed = row[8]?.toString();
+          console.log(`[Handler] Found existing content in embed column:`, 
+            existingEmbed ? `${existingEmbed.substring(0, 50)}...` : 'empty');
+        }
+      }
 
       console.log('[Handler] Processing status:', {
         videoName: video.name,
         foundMatch: rowIndex !== -1,
         row: rowNumber,
-        hasExistingEmbed: !!existingEmbed,
-        embedValue: existingEmbed ? existingEmbed.substring(0, 50) + '...' : 'null'
+        hasExistingEmbed: !!existingEmbed && existingEmbed.trim().length > 0,
       });
 
       let currentStatus: UpdateResult['status'] = 'error';

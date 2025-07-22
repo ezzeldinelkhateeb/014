@@ -31,13 +31,13 @@ const normalizeString = (str) => {
   return normalized;
 };
 
-// Extract Q numbers from string
+// Extract Q numbers from string with improved accuracy
 const extractQNumbers = (str) => {
   const qMatches = str.match(/Q\d+/gi) || [];
-  return qMatches.map(q => q.toUpperCase());
+  return qMatches.map(q => q.toUpperCase()).sort();
 };
 
-// Check if two names match
+// Check if two names match with stricter Q number validation
 const namesMatch = (nameA, nameB) => {
   console.log('\n[Match] Comparing:');
   console.log('[Match] A:', nameA);
@@ -67,35 +67,44 @@ const namesMatch = (nameA, nameB) => {
     return true;
   }
 
-  // Extract and compare Q numbers
+  // Extract and compare Q numbers - CRITICAL FOR QUESTION VARIANTS
   const qNumbersA = extractQNumbers(nameA);
   const qNumbersB = extractQNumbers(nameB);
 
   console.log('[Match] Q numbers A:', qNumbersA);
   console.log('[Match] Q numbers B:', qNumbersB);
 
-  // If both have Q numbers, they must match
-  if (qNumbersA.length > 0 && qNumbersB.length > 0) {
-    const qMatch = qNumbersA.some(qA => qNumbersB.includes(qA));
-    console.log('[Match] Q numbers match:', qMatch);
+  // If either has Q numbers, they must match EXACTLY
+  if (qNumbersA.length > 0 || qNumbersB.length > 0) {
+    // If one has Q numbers and the other doesn't, they're different videos
+    if (qNumbersA.length !== qNumbersB.length) {
+      console.log('[Match] ❌ Different Q number count - one has Q numbers, other doesn\'t');
+      return false;
+    }
     
-    if (qMatch) {
-      // Additional check: verify the base names are similar
-      const baseA = normalizedA.replace(/Q\d+/gi, '').trim();
-      const baseB = normalizedB.replace(/Q\d+/gi, '').trim();
-      
-      console.log('[Match] Base A (no Q):', baseA);
-      console.log('[Match] Base B (no Q):', baseB);
-      
-      if (baseA && baseB && (baseA.includes(baseB) || baseB.includes(baseA))) {
-        console.log('[Match] ✅ Q number + base name match');
-        return true;
-      }
+    // Check if all Q numbers match
+    const allQNumbersMatch = qNumbersA.every(q => qNumbersB.includes(q));
+    if (!allQNumbersMatch) {
+      console.log('[Match] ❌ Different Q numbers - not a match');
+      return false;
+    }
+    
+    // If Q numbers match, check if base names are similar
+    const baseA = normalizedA.replace(/Q\d+/gi, '').trim();
+    const baseB = normalizedB.replace(/Q\d+/gi, '').trim();
+    
+    console.log('[Match] Base A (no Q):', baseA);
+    console.log('[Match] Base B (no Q):', baseB);
+    
+    if (baseA && baseB && (baseA.includes(baseB) || baseB.includes(baseA))) {
+      console.log('[Match] ✅ Q number + base name match');
+      return true;
     }
   }
 
-  // Partial match check
-  if (normalizedA.length > 10 && normalizedB.length > 10) {
+  // Partial match check for non-Q-number videos
+  if (qNumbersA.length === 0 && qNumbersB.length === 0 && 
+      normalizedA.length > 10 && normalizedB.length > 10) {
     if (normalizedA.includes(normalizedB) || normalizedB.includes(normalizedA)) {
       console.log('[Match] ✅ Partial match (one contains the other)');
       return true;
@@ -106,17 +115,31 @@ const namesMatch = (nameA, nameB) => {
   return false;
 };
 
-// Find matching row in sheet
+// Find matching row in sheet with improved logic
 const findMatchingRow = (videoName, rows, nameColumnIndex = 0) => {
   console.log(`[FindRow] Looking for: "${videoName}"`);
   console.log(`[FindRow] Total rows: ${rows.length}`);
   console.log(`[FindRow] Name column index: ${nameColumnIndex}`);
 
+  // First try exact match (fastest)
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    if (!row || !row[nameColumnIndex]) continue;
+    
     const cellValue = row[nameColumnIndex] || '';
     
-    console.log(`[FindRow] Row ${i + 1}: "${cellValue}"`);
+    if (videoName === cellValue) {
+      console.log(`[FindRow] ✅ Found EXACT match at row ${i + 1}`);
+      return i + 1; // Sheet rows are 1-indexed
+    }
+  }
+  
+  // Then try fuzzy match with Q-number awareness
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || !row[nameColumnIndex]) continue;
+    
+    const cellValue = row[nameColumnIndex] || '';
     
     if (namesMatch(videoName, cellValue)) {
       console.log(`[FindRow] ✅ Found match at row ${i + 1}`);
@@ -260,11 +283,27 @@ export default async function handler(req, res) {
       if (matchingRow) {
         console.log(`[API] Found matching row: ${matchingRow}`);
         
+        // Check if cell already has content before updating
+        const existingEmbed = rows[matchingRow-1] && rows[matchingRow-1][embedColumnIndex];
+        
+        if (existingEmbed && existingEmbed.trim().length > 0) {
+          console.log(`[API] Row ${matchingRow} already has embed content - SKIPPING`);
+          results.push({
+            videoName: video.name,
+            status: 'skipped',
+            row: matchingRow,
+            reason: 'Cell already has embed code'
+          });
+          continue; // Skip this video
+        }
+        
+        // Only proceed if cell is empty
         // Prepare embed code update
-        if (video.embedCode) {
+        if (video.embedCode || video.embed_code) {
+          const embedCode = video.embedCode || video.embed_code;
           updates.push({
             range: `${targetSheetName}!${embedColumn}${matchingRow}`,
-            values: [[video.embedCode]]
+            values: [[embedCode]]
           });
           console.log(`[API] Added embed update for row ${matchingRow}`);
         }
