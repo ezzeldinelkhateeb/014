@@ -38,29 +38,4 @@ export function TestSheetsConnection() {
       setIsLoading(false);
     }
   };
-
-  return (
-    <div>
-      <Button 
-        onClick={testConnection} 
-        disabled={isLoading}
-        variant="outline"
-        size="sm"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Testing...
-          </>
-        ) : (
-          'Test Connection'
-        )}
-      </Button>
-      {result && (
-        <div className={`mt-2 text-sm ${result.success ? 'text-green-600' : 'text-red-600'}`}>
-          {result.message}
-        </div>
-      )}
-    </div>
-  );
 }
