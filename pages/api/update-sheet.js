@@ -31,13 +31,25 @@ const normalizeString = (str) => {
   return normalized;
 };
 
-// NEW: Helper function to detect homework videos
+// NEW: Helper function to detect homework videos with improved Q-number awareness
 const isHomeworkVideo = (videoName) => {
   if (!videoName) return false;
   
-  // Check for Arabic homework pattern
+  // If video has Q-number pattern, it's a question video, not just homework
+  if (/Q\d+/i.test(videoName)) {
+    console.log('[isHomeworkVideo] Video has Q-number, treating as question video not homework');
+    return false;
+  }
+  
+  // Check for Arabic homework pattern but not if it has Q-numbers
   const homeworkPattern = /واجب|الحصة|homework/i;
-  return homeworkPattern.test(videoName);
+  const isHomework = homeworkPattern.test(videoName);
+  
+  if (isHomework) {
+    console.log('[isHomeworkVideo] Detected homework pattern in:', videoName);
+  }
+  
+  return isHomework;
 };
 
 // Extract Q numbers from string
@@ -121,21 +133,38 @@ const findMatchingRow = (videoName, rows, nameColumnIndex = 0) => {
   console.log(`[FindRow] Total rows: ${rows.length}`);
   console.log(`[FindRow] Name column index: ${nameColumnIndex}`);
   
-  // Check if this is a homework video
-  if (isHomeworkVideo(videoName)) {
-    console.log(`[FindRow] ⚠️ HOMEWORK VIDEO DETECTED: "${videoName}"`);
-  }
-
+  // First try an exact string match (highest priority)
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length <= nameColumnIndex) continue;
     
     const cellValue = row[nameColumnIndex] || '';
     
-    console.log(`[FindRow] Row ${i + 1}: "${cellValue}"`);
+    // Try exact match first (with and without file extension)
+    const videoNameWithoutExt = videoName.replace(/\.[^/.]+$/, '');
+    if (cellValue === videoName || cellValue === videoNameWithoutExt) {
+      console.log(`[FindRow] ✅ Found EXACT match at row ${i + 1}`);
+      return i + 1; // Sheet rows are 1-indexed
+    }
+  }
+  
+  // Check if this is a homework video with Q-numbers
+  const hasQNumber = /Q\d+/i.test(videoName);
+  if (hasQNumber) {
+    console.log(`[FindRow] 📝 Video has Q-number pattern: "${videoName}"`);
+  }
+
+  // Fall back to fuzzy matching only if no exact match found
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length <= nameColumnIndex) continue;
+    
+    const cellValue = row[nameColumnIndex] || '';
+    
+    console.log(`[FindRow] Comparing with row ${i + 1}: "${cellValue}"`);
     
     if (namesMatch(videoName, cellValue)) {
-      console.log(`[FindRow] ✅ Found match at row ${i + 1}`);
+      console.log(`[FindRow] ✅ Found fuzzy match at row ${i + 1}`);
       return i + 1; // Sheet rows are 1-indexed
     }
   }
@@ -309,9 +338,14 @@ export default async function handler(req, res) {
     for (const video of videos) {
       console.log(`[API] Processing video: ${video.name}`);
       
-      // NEW: Check if this is a homework video that should be skipped
-      if (isHomeworkVideo(video.name)) {
-        console.log(`[API] ⚠️ HOMEWORK VIDEO DETECTED: "${video.name}" - Will be handled carefully`);
+      // Check if this video has Q-numbers
+      const hasQNumber = /Q\d+/i.test(video.name);
+      
+      // NEW: Check if this is a homework video but avoid skipping if it has Q-numbers
+      if (isHomeworkVideo(video.name) && !hasQNumber) {
+        console.log(`[API] ⚠️ BASIC HOMEWORK VIDEO DETECTED: "${video.name}" - Will be handled carefully`);
+      } else if (hasQNumber) {
+        console.log(`[API] 📝 QUESTION VIDEO DETECTED: "${video.name}" - Will be processed normally`);
       }
       
       const matchingRow = findMatchingRow(video.name, rows, nameColumnIndex);
@@ -325,9 +359,9 @@ export default async function handler(req, res) {
                               rows[matchingRow - 1][embedColumnIndex] && 
                               rows[matchingRow - 1][embedColumnIndex].toString().trim().length > 0;
         
-        // Always skip homework videos or videos with existing embeds
-        if (isHomeworkVideo(video.name) || hasExistingEmbed) {
-          const reason = isHomeworkVideo(video.name) ? 'Homework video detected' : 'Video already has embed code';
+        // Skip videos with existing embeds or basic homework videos without Q-numbers
+        if ((isHomeworkVideo(video.name) && !hasQNumber) || hasExistingEmbed) {
+          const reason = (isHomeworkVideo(video.name) && !hasQNumber) ? 'Homework video detected' : 'Video already has embed code';
           console.log(`[API] Skipping update: ${reason}`);
           
           results.push({
