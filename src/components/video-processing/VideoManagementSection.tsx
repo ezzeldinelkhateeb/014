@@ -192,9 +192,38 @@ const VideoManagementSection: React.FC<VideoManagementSectionProps> = ({
     return [...videos].sort((a, b) => {
       // استخراج أرقام المحاضرات مع دعم الصيغة العربية "الحصة X"
       const getLectureNumber = (title: string) => {
-        // البحث عن الصيغة العربية "الحصة X"
-        const arabicMatch = title.match(/الحصة\s+(\d+)/i);
-        if (arabicMatch) return parseInt(arabicMatch[1]);
+        // قاموس تحويل الأرقام العربية المكتوبة إلى أرقام
+        const arabicNumberMap: Record<string, number> = {
+          'الأولى': 1, 'الاولى': 1, 'الأول': 1, 'الاول': 1,
+          'الثانية': 2, 'الثاني': 2,
+          'الثالثة': 3, 'الثالث': 3,
+          'الرابعة': 4, 'الرابع': 4,
+          'الخامسة': 5, 'الخامس': 5,
+          'السادسة': 6, 'السادس': 6,
+          'السابعة': 7, 'السابع': 7,
+          'الثامنة': 8, 'الثامن': 8,
+          'التاسعة': 9, 'التاسع': 9,
+          'العاشرة': 10, 'العاشر': 10,
+          'الحادية عشر': 11, 'الحادي عشر': 11, 'الحادية عشرة': 11,
+          'الثانية عشر': 12, 'الثاني عشر': 12, 'الثانية عشرة': 12,
+          'الثالثة عشر': 13, 'الثالث عشر': 13, 'الثالثة عشرة': 13,
+          'الرابعة عشر': 14, 'الرابع عشر': 14, 'الرابعة عشرة': 14,
+          'الخامسة عشر': 15, 'الخامس عشر': 15, 'الخامسة عشرة': 15
+        };
+        
+        // البحث عن نمط "الحصة X" في العنوان
+        for (const [arabicNum, numValue] of Object.entries(arabicNumberMap)) {
+          if (title.includes(`الحصة ${arabicNum}`) || 
+              title.includes(`المحاضرة ${arabicNum}`) || 
+              title.includes(`- ${arabicNum} -`) || 
+              title.includes(`- ${arabicNum}`)) {
+            return numValue;
+          }
+        }
+        
+        // البحث عن الصيغة الرقمية "الحصة رقم" أو "الحصة NUMBER"
+        const arabicNumericMatch = title.match(/الحصة\s+(\d+)/i);
+        if (arabicNumericMatch) return parseInt(arabicNumericMatch[1]);
         
         // استخدام الصيغة الإنجليزية كبديل
         const englishMatch = title.match(/Lecture\s+(\d+)/i);
@@ -211,7 +240,8 @@ const VideoManagementSection: React.FC<VideoManagementSectionProps> = ({
       const getContentTypePriority = (title: string) => {
         if (title.includes('واجب')) return 2;
         if (title.includes('أهم أفكار')) return 3;
-        return 1; // المحتوى العادي له الأولوية العليا
+        if (title.includes('امتحان')) return 1; // امتحان له الأولوية العليا
+        return 4; // المحتوى العادي
       };
 
       // الحصول على أرقام المحاضرة والأسئلة لكلا الفيديوهين
