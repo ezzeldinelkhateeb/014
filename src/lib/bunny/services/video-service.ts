@@ -41,16 +41,28 @@ export class VideoService {
 
       // Enhanced sorting function
       return videos.sort((a: Video, b: Video) => {
-        // Extract lecture numbers
+        // Extract lecture numbers with support for Arabic format "الحصة X"
         const getLectureNumber = (title: string) => {
-          const match = title.match(/Lecture (\d+)/i);
+          // Check for Arabic lecture number "الحصة X"
+          const arabicMatch = title.match(/الحصة\s+(\d+)/i);
+          if (arabicMatch) return parseInt(arabicMatch[1]);
+          
+          // Fall back to English format if needed
+          const englishMatch = title.match(/Lecture\s+(\d+)/i);
+          return englishMatch ? parseInt(englishMatch[1]) : 0;
+        };
+
+        // Extract question numbers with improved pattern
+        const getQuestionNumber = (title: string) => {
+          const match = title.match(/Q\s*(\d+)/i);
           return match ? parseInt(match[1]) : 0;
         };
 
-        // Extract question numbers
-        const getQuestionNumber = (title: string) => {
-          const match = title.match(/Q(\d+)/i);
-          return match ? parseInt(match[1]) : 0;
+        // Extract content type priority (regular content > homework > أهم أفكار)
+        const getContentTypePriority = (title: string) => {
+          if (title.includes('واجب')) return 2;
+          if (title.includes('أهم أفكار')) return 3;
+          return 1; // Regular content has highest priority
         };
 
         // Get lecture and question numbers for both videos
@@ -58,13 +70,28 @@ export class VideoService {
         const lectureB = getLectureNumber(b.title);
         const questionA = getQuestionNumber(a.title);
         const questionB = getQuestionNumber(b.title);
+        const typeA = getContentTypePriority(a.title);
+        const typeB = getContentTypePriority(b.title);
 
-        // Sort by lecture number first (descending)
+        // First group by course code prefix (J5-T1-U1 etc.)
+        const prefixA = a.title.split('--')[0] || '';
+        const prefixB = b.title.split('--')[0] || '';
+        
+        if (prefixA !== prefixB) {
+          return prefixA.localeCompare(prefixB);
+        }
+        
+        // Then sort by lecture number (ascending)
         if (lectureA !== lectureB) {
-          return lectureB - lectureA; // Higher lecture numbers first
+          return lectureA - lectureB;
+        }
+        
+        // Then sort by content type
+        if (typeA !== typeB) {
+          return typeA - typeB;
         }
 
-        // Then sort by question number
+        // Then sort by question number (ascending)
         return questionA - questionB;
       });
 

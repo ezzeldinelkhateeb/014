@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
 import { Copy, CheckCircle2, Save, Loader2, Video, Download } from 'lucide-react';
@@ -187,6 +187,64 @@ const VideoManagementSection: React.FC<VideoManagementSectionProps> = ({
   // Add available qualities for the dropdown
   const availableQualities = ['240p', '360p', '480p', '720p', '1080p', '1440p'];
 
+  // إضافة دالة لترتيب الفيديوهات بنفس المنطق المستخدم في باقي الأقسام
+  const sortedVideos = useMemo(() => {
+    return [...videos].sort((a, b) => {
+      // استخراج أرقام المحاضرات مع دعم الصيغة العربية "الحصة X"
+      const getLectureNumber = (title: string) => {
+        // البحث عن الصيغة العربية "الحصة X"
+        const arabicMatch = title.match(/الحصة\s+(\d+)/i);
+        if (arabicMatch) return parseInt(arabicMatch[1]);
+        
+        // استخدام الصيغة الإنجليزية كبديل
+        const englishMatch = title.match(/Lecture\s+(\d+)/i);
+        return englishMatch ? parseInt(englishMatch[1]) : 0;
+      };
+
+      // استخراج أرقام الأسئلة مع تحسين النمط المستخدم
+      const getQuestionNumber = (title: string) => {
+        const match = title.match(/Q\s*(\d+)/i);
+        return match ? parseInt(match[1]) : 0;
+      };
+
+      // استخراج أولوية نوع المحتوى (محتوى عادي > واجب > أهم أفكار)
+      const getContentTypePriority = (title: string) => {
+        if (title.includes('واجب')) return 2;
+        if (title.includes('أهم أفكار')) return 3;
+        return 1; // المحتوى العادي له الأولوية العليا
+      };
+
+      // الحصول على أرقام المحاضرة والأسئلة لكلا الفيديوهين
+      const lectureA = getLectureNumber(a.title);
+      const lectureB = getLectureNumber(b.title);
+      const questionA = getQuestionNumber(a.title);
+      const questionB = getQuestionNumber(b.title);
+      const typeA = getContentTypePriority(a.title);
+      const typeB = getContentTypePriority(b.title);
+
+      // أولاً ترتيب حسب بادئة كود المقرر (J5-T1-U1 إلخ)
+      const prefixA = a.title.split('--')[0] || '';
+      const prefixB = b.title.split('--')[0] || '';
+      
+      if (prefixA !== prefixB) {
+        return prefixA.localeCompare(prefixB);
+      }
+      
+      // ثم الترتيب حسب رقم المحاضرة (تصاعدياً)
+      if (lectureA !== lectureB) {
+        return lectureA - lectureB;
+      }
+      
+      // ثم الترتيب حسب نوع المحتوى
+      if (typeA !== typeB) {
+        return typeA - typeB;
+      }
+
+      // ثم الترتيب حسب رقم السؤال (تصاعدياً)
+      return questionA - questionB;
+    });
+  }, [videos]);
+
   return (
     <section className="space-y-4 pt-6 border-t">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -261,7 +319,7 @@ const VideoManagementSection: React.FC<VideoManagementSectionProps> = ({
                 <p>No videos found in this collection.</p>
               </div>
           )}
-          {!loading && videos.map((video, index) => (
+          {!loading && sortedVideos.length > 0 && sortedVideos.map((video, index) => (
             <div
               key={video.guid}
               className="flex items-center justify-between p-3 border rounded-md hover:bg-gray-50 transition-all duration-200 hover-lift animate-fade-in"

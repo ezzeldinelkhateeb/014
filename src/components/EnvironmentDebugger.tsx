@@ -143,52 +143,52 @@ export function EnvironmentDebugger() {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Redesigned compact test buttons bar */}
-      <div className="bg-gray-50 rounded-md p-1.5 flex items-center gap-1.5 border border-gray-200">
+    <div className="space-y-2"> {/* Reduced space-y from 4 to 2 */}
+      {/* Ultra compact debug buttons bar */}
+      <div className="inline-flex items-center bg-gray-50 rounded border border-gray-200 p-0.5 text-[10px] shadow-sm">
         <Button 
           onClick={checkEnvironment} 
           disabled={isLoading}
           variant="ghost"
           size="sm"
-          className="text-xs h-7 px-2"
+          className="h-5 px-1 text-[10px] rounded-sm"
         >
           {isLoading ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className="h-2.5 w-2.5 animate-spin" />
           ) : (
-            <AlertCircle className="mr-1 h-3 w-3" />
+            <AlertCircle className="h-2.5 w-2.5" />
           )}
-          <span>Debug</span>
+          <span className="ml-0.5">Debug</span>
         </Button>
-        <div className="w-px h-5 bg-gray-300"></div>
+        <div className="w-px h-3.5 bg-gray-300 mx-0.5"></div>
         <Button 
           onClick={testSimpleAPI} 
           disabled={testingSimple}
           variant="ghost"
           size="sm"
-          className="text-xs h-7 px-2"
+          className="h-5 px-1 text-[10px] rounded-sm"
         >
           {testingSimple ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className="h-2.5 w-2.5 animate-spin" />
           ) : (
-            <AlertCircle className="mr-1 h-3 w-3" />
+            <AlertCircle className="h-2.5 w-2.5" />
           )}
-          <span>Simple API</span>
+          <span className="ml-0.5">API</span>
         </Button>
-        <div className="w-px h-5 bg-gray-300"></div>
+        <div className="w-px h-3.5 bg-gray-300 mx-0.5"></div>
         <Button 
           onClick={testSheetsBasic} 
           disabled={testingSheetsBasic}
           variant="ghost"
-          size="sm"
-          className="text-xs h-7 px-2"
+          size="sm" 
+          className="h-5 px-1 text-[10px] rounded-sm"
         >
           {testingSheetsBasic ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
+            <Loader2 className="h-2.5 w-2.5 animate-spin" />
           ) : (
-            <AlertCircle className="mr-1 h-3 w-3" />
+            <AlertCircle className="h-2.5 w-2.5" />
           )}
-          <span>Sheets Basic</span>
+          <span className="ml-0.5">Sheets</span>
         </Button>
       </div>
 
