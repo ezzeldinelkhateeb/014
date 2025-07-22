@@ -16,8 +16,6 @@ export function EnvironmentDebugger() {
   const [isLoading, setIsLoading] = useState(false);
   const [debugData, setDebugData] = useState<EnvDebugData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [connectionTest, setConnectionTest] = useState<{ success: boolean; message: string; details?: any } | null>(null);
-  const [testingConnection, setTestingConnection] = useState(false);
   const [simpleTest, setSimpleTest] = useState<{ success: boolean; message: string; details?: any } | null>(null);
   const [testingSimple, setTestingSimple] = useState(false);
   const [sheetsBasicTest, setSheetsBasicTest] = useState<{ success: boolean; message: string; details?: any } | null>(null);
@@ -140,143 +138,68 @@ export function EnvironmentDebugger() {
     }
   };
 
-  const testConnection = async () => {
-    setTestingConnection(true);
-    setConnectionTest(null);
-    
-    try {
-      const response = await fetch('/api/test-all?test=sheets-connection');
-      
-      // Check if response is JSON
-      const contentType = response.headers.get('content-type') || '';
-      let data;
-      
-      if (contentType.includes('application/json')) {
-        try {
-          data = await response.json();
-        } catch (parseError) {
-          // If JSON parsing fails, get the raw text
-          const rawText = await response.text();
-          setConnectionTest({
-            success: false,
-            message: `Server returned invalid JSON: ${rawText.substring(0, 100)}...`,
-            details: { rawResponse: rawText, status: response.status }
-          });
-          return;
-        }
-      } else {
-        // If not JSON, get the raw text
-        const rawText = await response.text();
-        setConnectionTest({
-          success: false,
-          message: `Server returned non-JSON response: ${rawText.substring(0, 100)}...`,
-          details: { rawResponse: rawText, status: response.status, contentType }
-        });
-        return;
-      }
-      
-      setConnectionTest({
-        success: response.ok,
-        message: data.message || 'Connection test completed',
-        details: data.data || data.error
-      });
-    } catch (err) {
-      setConnectionTest({
-        success: false,
-        message: err instanceof Error ? err.message : 'Connection test failed'
-      });
-    } finally {
-      setTestingConnection(false);
-    }
-  };
-
   const getStatusIcon = (condition: boolean) => {
     return condition ? <CheckCircle className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-600" />;
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      {/* Redesigned compact test buttons bar */}
+      <div className="bg-gray-50 rounded-md p-1.5 flex items-center gap-1.5 border border-gray-200">
         <Button 
           onClick={checkEnvironment} 
           disabled={isLoading}
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className="text-xs h-7 px-2"
         >
           {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Checking...
-            </>
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <>
-              <AlertCircle className="mr-2 h-4 w-4" />
-              Debug Environment
-            </>
+            <AlertCircle className="mr-1 h-3 w-3" />
           )}
+          <span>Debug</span>
         </Button>
+        <div className="w-px h-5 bg-gray-300"></div>
         <Button 
           onClick={testSimpleAPI} 
           disabled={testingSimple}
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className="text-xs h-7 px-2"
         >
           {testingSimple ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Testing...
-            </>
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <>
-              <AlertCircle className="mr-2 h-4 w-4" />
-              Test Simple API
-            </>
+            <AlertCircle className="mr-1 h-3 w-3" />
           )}
+          <span>Simple API</span>
         </Button>
+        <div className="w-px h-5 bg-gray-300"></div>
         <Button 
           onClick={testSheetsBasic} 
           disabled={testingSheetsBasic}
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className="text-xs h-7 px-2"
         >
           {testingSheetsBasic ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Testing...
-            </>
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <>
-              <AlertCircle className="mr-2 h-4 w-4" />
-              Test Sheets Basic
-            </>
+            <AlertCircle className="mr-1 h-3 w-3" />
           )}
-        </Button>
-        <Button 
-          onClick={testConnection} 
-          disabled={testingConnection || !debugData?.credentialsParseable.success}
-          variant="outline"
-          size="sm"
-        >
-          {testingConnection ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Testing...
-            </>
-          ) : (
-            <>
-              <AlertCircle className="mr-2 h-4 w-4" />
-              Test Connection
-            </>
-          )}
+          <span>Sheets Basic</span>
         </Button>
       </div>
 
+      {/* Keep the existing error display */}
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-md">
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 
+      {/* Keep the rest of the result displays */}
       {simpleTest && (
         <div className={`p-3 border rounded-md ${
           simpleTest.success 
@@ -325,33 +248,6 @@ export function EnvironmentDebugger() {
               <summary className="text-xs cursor-pointer">Show Details</summary>
               <pre className="text-xs mt-1 p-2 bg-gray-100 rounded overflow-auto">
                 {JSON.stringify(sheetsBasicTest.details, null, 2)}
-              </pre>
-            </details>
-          )}
-        </div>
-      )}
-
-      {connectionTest && (
-        <div className={`p-3 border rounded-md ${
-          connectionTest.success 
-            ? 'bg-green-50 border-green-200' 
-            : 'bg-red-50 border-red-200'
-        }`}>
-          <h4 className={`font-medium text-sm mb-2 ${
-            connectionTest.success ? 'text-green-800' : 'text-red-800'
-          }`}>
-            Connection Test Result:
-          </h4>
-          <p className={`text-sm ${
-            connectionTest.success ? 'text-green-700' : 'text-red-700'
-          }`}>
-            {connectionTest.message}
-          </p>
-          {connectionTest.details && (
-            <details className="mt-2">
-              <summary className="text-xs cursor-pointer">Show Details</summary>
-              <pre className="text-xs mt-1 p-2 bg-gray-100 rounded overflow-auto">
-                {JSON.stringify(connectionTest.details, null, 2)}
               </pre>
             </details>
           )}
