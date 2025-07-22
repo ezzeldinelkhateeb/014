@@ -410,29 +410,3 @@ export default async function handler(req, res) {
     });
   }
 }
-    console.error('[API] Error:', error);
-    
-    // Handle specific Google API errors
-    if (error.code === 403) {
-      return res.status(403).json({
-        error: 'Permission denied',
-        message: 'Access to Google Sheets denied. Please check permissions.',
-        details: error.message
-      });
-    }
-    
-    if (error.code === 404) {
-      return res.status(404).json({
-        error: 'Spreadsheet not found',
-        message: 'The specified spreadsheet could not be found.',
-        details: error.message
-      });
-    }
-
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to update sheet',
-      details: error.message
-    });
-  }
-}
