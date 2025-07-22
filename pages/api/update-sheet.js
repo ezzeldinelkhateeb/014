@@ -114,6 +114,8 @@ const findMatchingRow = (videoName, rows, nameColumnIndex = 0) => {
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    if (!row || row.length <= nameColumnIndex) continue;
+    
     const cellValue = row[nameColumnIndex] || '';
     
     console.log(`[FindRow] Row ${i + 1}: "${cellValue}"`);
@@ -131,13 +133,28 @@ const findMatchingRow = (videoName, rows, nameColumnIndex = 0) => {
 // Convert column letter to index (A=0, B=1, etc.)
 const getColumnIndex = (letter) => {
   if (!letter) return 0;
-  return letter.toUpperCase().charCodeAt(0) - 65;
+  let result = 0;
+  const letters = letter.toUpperCase();
+  for (let i = 0; i < letters.length; i++) {
+    result = result * 26 + (letters.charCodeAt(i) - 64); // A is 65 in ASCII, so -64 gives 1-based index
+  }
+  return result - 1; // Convert to 0-based index
 };
 
 export default async function handler(req, res) {
   console.log('[API] /api/update-sheet called');
   console.log('[API] Method:', req.method);
-  console.log('[API] Headers:', JSON.stringify(req.headers, null, 2));
+  
+  try {
+    console.log('[API] Headers:', JSON.stringify({
+      ...req.headers,
+      // Hide sensitive info
+      authorization: req.headers.authorization ? '[REDACTED]' : undefined,
+      accesskey: req.headers.accesskey ? '[REDACTED]' : undefined,
+    }, null, 2));
+  } catch (err) {
+    console.log('[API] Headers logging failed:', err.message);
+  }
   
   // Only allow POST requests
   if (req.method !== 'POST') {
@@ -173,10 +190,10 @@ export default async function handler(req, res) {
     // This is the key part to ensure it works with both old and new config formats
     const { 
       spreadsheetId, 
-      sheetName, 
+      sheetName = "OPERATIONS", 
       nameColumn = sheetConfig?.videoNameColumn || 'M', 
       embedColumn = sheetConfig?.embedCodeColumn || 'Q', 
-      finalMinutesColumn = 'P' 
+      finalMinutesColumn = sheetConfig?.finalMinutesColumn || 'P' 
     } = sheetConfig || {};
     
     console.log('[API] Extracted parameters:', {
@@ -267,7 +284,7 @@ export default async function handler(req, res) {
     // Log the name column data specifically
     console.log('[API] Name column data (first 10 rows):');
     rows.slice(0, 10).forEach((row, index) => {
-      const nameValue = row[nameColumnIndex] || 'EMPTY';
+      const nameValue = row && row.length > nameColumnIndex ? row[nameColumnIndex] : 'EMPTY';
       console.log(`[API] Row ${index + 1} (${nameColumn}): "${nameValue}"`);
     });
 
@@ -310,44 +327,11 @@ export default async function handler(req, res) {
           finalMinutesUpdated: video.finalMinutes !== undefined && video.finalMinutes !== null
         });
       } else {
-        console.log(`[API] No matching row found for: ${video.name} - Adding new row`);
-        
-        // Add new row to the sheet
-        const newRowNumber = rows.length + 1;
-        
-        // Prepare new row data
-        const newRowData = [];
-        for (let i = 0; i < 26; i++) { // Initialize with empty values for A-Z
-          newRowData.push('');
-        }
-        
-        // Set the video name in the name column
-        newRowData[nameColumnIndex] = video.name;
-        
-        // Set embed code if available
-        if (video.embedCode || video.embed_code) {
-          newRowData[embedColumnIndex] = video.embedCode || video.embed_code;
-        }
-        
-        // Set final minutes if available
-        if (video.finalMinutes !== undefined && video.finalMinutes !== null) {
-          newRowData[finalMinutesColumnIndex] = video.finalMinutes;
-        }
-        
-        // Add the new row
-        updates.push({
-          range: `${targetSheetName}!A${newRowNumber}:Z${newRowNumber}`,
-          values: [newRowData]
-        });
-        
-        console.log(`[API] Added new row ${newRowNumber} for video: ${video.name}`);
-        
+        console.log(`[API] No matching row found for: ${video.name}`);
         results.push({
           videoName: video.name,
-          status: 'added',
-          row: newRowNumber,
-          embedUpdated: !!(video.embedCode || video.embed_code),
-          finalMinutesUpdated: video.finalMinutes !== undefined && video.finalMinutes !== null
+          status: 'notFound',
+          row: null
         });
       }
     }
@@ -372,10 +356,8 @@ export default async function handler(req, res) {
 
     // Calculate statistics for compatible format with SheetUpdateReport component
     const stats = {
-      totalVideos: videos.length,
       updated: results.filter(r => r.status === 'updated').length,
-      added: results.filter(r => r.status === 'added').length,
-      notFound: results.filter(r => r.status === 'not_found').length,
+      notFound: results.filter(r => r.status === 'notFound').length,
       skipped: 0,
       error: 0
     };
@@ -383,13 +365,9 @@ export default async function handler(req, res) {
     // Format results to be compatible with SheetUpdateReport component
     const formattedResults = results.map(r => ({
       videoName: r.videoName,
-      status: r.status === 'updated' ? 'updated' : 
-              r.status === 'added' ? 'updated' : // Map 'added' to 'updated' for UI
-              r.status === 'not_found' ? 'notFound' : 'error',
+      status: r.status === 'updated' ? 'updated' : 'notFound',
       details: r.status === 'updated' ? 
                `تم التحديث في الصف ${r.row}${r.embedUpdated ? ', تم تحديث كود التضمين' : ''}${r.finalMinutesUpdated ? ', تم تحديث المدة النهائية' : ''}` :
-               r.status === 'added' ? 
-               `تمت الإضافة في الصف ${r.row}` : 
                'لم يتم العثور على الفيديو في الشيت'
     }));
 
@@ -400,16 +378,38 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: 'تم تحديث الشيت بنجاح',
-      stats: {
-        updated: stats.updated + stats.added,
-        notFound: stats.notFound,
-        skipped: stats.skipped,
-        error: stats.error,
-      },
+      stats,
       results: formattedResults
     });
 
   } catch (error) {
+    console.error('[API] Error:', error.message);
+    console.error('[API] Stack:', error.stack);
+    
+    // Handle specific Google API errors
+    if (error.code === 403) {
+      return res.status(403).json({
+        error: 'Permission denied',
+        message: 'Access to Google Sheets denied. Please check permissions.',
+        details: error.message
+      });
+    }
+    
+    if (error.code === 404) {
+      return res.status(404).json({
+        error: 'Spreadsheet not found',
+        message: 'The specified spreadsheet could not be found.',
+        details: error.message
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to update sheet',
+      details: error.message
+    });
+  }
+}
     console.error('[API] Error:', error);
     
     // Handle specific Google API errors
