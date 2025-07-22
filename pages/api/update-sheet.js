@@ -31,6 +31,15 @@ const normalizeString = (str) => {
   return normalized;
 };
 
+// NEW: Helper function to detect homework videos
+const isHomeworkVideo = (videoName) => {
+  if (!videoName) return false;
+  
+  // Check for Arabic homework pattern
+  const homeworkPattern = /واجب|الحصة|homework/i;
+  return homeworkPattern.test(videoName);
+};
+
 // Extract Q numbers from string
 const extractQNumbers = (str) => {
   const qMatches = str.match(/Q\d+/gi) || [];
@@ -111,6 +120,11 @@ const findMatchingRow = (videoName, rows, nameColumnIndex = 0) => {
   console.log(`[FindRow] Looking for: "${videoName}"`);
   console.log(`[FindRow] Total rows: ${rows.length}`);
   console.log(`[FindRow] Name column index: ${nameColumnIndex}`);
+  
+  // Check if this is a homework video
+  if (isHomeworkVideo(videoName)) {
+    console.log(`[FindRow] ⚠️ HOMEWORK VIDEO DETECTED: "${videoName}"`);
+  }
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -295,10 +309,36 @@ export default async function handler(req, res) {
     for (const video of videos) {
       console.log(`[API] Processing video: ${video.name}`);
       
+      // NEW: Check if this is a homework video that should be skipped
+      if (isHomeworkVideo(video.name)) {
+        console.log(`[API] ⚠️ HOMEWORK VIDEO DETECTED: "${video.name}" - Will be handled carefully`);
+      }
+      
       const matchingRow = findMatchingRow(video.name, rows, nameColumnIndex);
       
       if (matchingRow) {
         console.log(`[API] Found matching row: ${matchingRow}`);
+        
+        // Enhanced check for existing embed code
+        const hasExistingEmbed = rows[matchingRow - 1] && 
+                              rows[matchingRow - 1].length > embedColumnIndex && 
+                              rows[matchingRow - 1][embedColumnIndex] && 
+                              rows[matchingRow - 1][embedColumnIndex].toString().trim().length > 0;
+        
+        // Always skip homework videos or videos with existing embeds
+        if (isHomeworkVideo(video.name) || hasExistingEmbed) {
+          const reason = isHomeworkVideo(video.name) ? 'Homework video detected' : 'Video already has embed code';
+          console.log(`[API] Skipping update: ${reason}`);
+          
+          results.push({
+            videoName: video.name,
+            status: 'skipped',
+            row: matchingRow,
+            reason: reason
+          });
+          
+          continue; // Skip to next video
+        }
         
         // Prepare embed code update
         if (video.embedCode || video.embed_code) {
@@ -358,16 +398,18 @@ export default async function handler(req, res) {
     const stats = {
       updated: results.filter(r => r.status === 'updated').length,
       notFound: results.filter(r => r.status === 'notFound').length,
-      skipped: 0,
+      skipped: results.filter(r => r.status === 'skipped').length,
       error: 0
     };
 
     // Format results to be compatible with SheetUpdateReport component
     const formattedResults = results.map(r => ({
       videoName: r.videoName,
-      status: r.status === 'updated' ? 'updated' : 'notFound',
+      status: r.status,
       details: r.status === 'updated' ? 
                `تم التحديث في الصف ${r.row}${r.embedUpdated ? ', تم تحديث كود التضمين' : ''}${r.finalMinutesUpdated ? ', تم تحديث المدة النهائية' : ''}` :
+               r.status === 'skipped' ?
+               `تم تخطي التحديث في الصف ${r.row}: ${r.reason || 'الفيديو لديه كود تضمين بالفعل'}` :
                'لم يتم العثور على الفيديو في الشيت'
     }));
 
