@@ -124,14 +124,14 @@ export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           videos: embedUpdates,
-          // Add current sheet config if available
-          ...(getCurrentSheetConfig?.() && {
+          // Send sheet config as a separate object
+          sheetConfig: getCurrentSheetConfig?.() ? {
             spreadsheetId: getCurrentSheetConfig().spreadsheetId,
             sheetName: getCurrentSheetConfig().sheetName,
             nameColumn: getCurrentSheetConfig().videoNameColumn,
             embedColumn: getCurrentSheetConfig().embedCodeColumn,
             finalMinutesColumn: getCurrentSheetConfig().finalMinutesColumn
-          })
+          } : undefined
         })
       });
       
@@ -320,14 +320,11 @@ export function useSheetUpdater(getCurrentSheetConfig?: () => SheetConfig | null
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           videos: videoUpdates,
-          // Add current sheet config if available
-          ...(getCurrentSheetConfig?.() && {
-            spreadsheetId: getCurrentSheetConfig().spreadsheetId,
-            sheetName: getCurrentSheetConfig().sheetName,
-            nameColumn: getCurrentSheetConfig().videoNameColumn,
-            embedColumn: getCurrentSheetConfig().embedCodeColumn,
-            finalMinutesColumn: getCurrentSheetConfig().finalMinutesColumn
-          })
+          // Send sheet config as separate parameters
+          spreadsheetId: getCurrentSheetConfig?.()?.spreadsheetId,
+          sheetName: getCurrentSheetConfig?.()?.sheetName,
+          nameColumn: getCurrentSheetConfig?.()?.videoNameColumn,
+          finalMinutesColumn: getCurrentSheetConfig?.()?.finalMinutesColumn
         })
       });
       

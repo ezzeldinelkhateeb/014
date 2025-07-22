@@ -6,7 +6,7 @@
       "use": "@vercel/node",
       "config": {
         "runtime": "nodejs18.x",
-        "maxDuration": 30,
+        "maxDuration": 60,
         "memory": 1024
       }
     },
